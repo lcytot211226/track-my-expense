@@ -3,11 +3,13 @@ import type { CSSProperties } from "react";
 import OverviewChart from "@/components/OverviewChart";
 import {
   DEMO_CARDS,
+  DEMO_DAILY_BUDGET,
   DEMO_ELEC_COST,
   DEMO_DAILY_EXPENSE,
   DEMO_EXPENSE_PREVIEW,
   DEMO_INCOME_PREVIEW,
   DEMO_INCOME_TOTAL,
+  DEMO_REMAINING_DAYS,
   DEMO_RENT,
   DEMO_TOTAL_EXPENSE,
   DEMO_UTILITY_COST,
@@ -39,6 +41,12 @@ const FEATURES = [
     description: "支援深色/淺色模式與響應式版面,手機隨手記一筆也不卡。",
     color: { light: "#eda100", dark: "#c98500" },
     icon: <path d="M8 3h8a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H8a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1Zm4 15h.01" />,
+  },
+  {
+    title: "每日可花預算試算",
+    description: "設定自己的月結算日,系統會自動用「當月結餘 ÷ 剩餘天數」算出平均每天還能花多少,超支就直接顯示 NaN。",
+    color: { light: "#8b5cf6", dark: "#7c4fe0" },
+    icon: <path d="M12 8v4l3 2M22 12a10 10 0 1 1-20 0 10 10 0 0 1 20 0Z" />,
   },
 ];
 
@@ -179,6 +187,10 @@ export default function Home() {
                 <p className="text-sm text-zinc-500 dark:text-zinc-400">結餘</p>
                 <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
                   ${(DEMO_INCOME_TOTAL - DEMO_TOTAL_EXPENSE).toLocaleString()}
+                </p>
+                <p className="text-xs text-zinc-400 dark:text-zinc-500">
+                  距結算日還有 {DEMO_REMAINING_DAYS} 天,每日可花{" "}
+                  {DEMO_DAILY_BUDGET != null ? `$${Math.floor(DEMO_DAILY_BUDGET).toLocaleString()}` : "NaN"}
                 </p>
               </div>
             </div>

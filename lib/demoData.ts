@@ -1,5 +1,7 @@
 /** 首頁展示用的假資料,純粹用來介紹功能,不接資料庫、不會被任何 API 用到。 */
 
+import { calculateDailyBudget, daysUntilSpecialDate } from "./calculateDailyBudget";
+
 export const DEMO_DAILY_EXPENSE = [
   { label: "09/01", amount: 0, items: [] },
   { label: "09/02", amount: 320, items: [{ item: "手搖飲", amount: 320 }] },
@@ -38,3 +40,12 @@ export const DEMO_CARDS = [
   { name: "國泰CUBE卡", closingDate: 15, paymentDate: 3 },
   { name: "台新@GoGo卡", closingDate: 20, paymentDate: 8 },
 ];
+
+// 假設「今天」是示範資料裡最後一天的隔天(9/15),月結算日設在 20 號。
+const DEMO_TODAY = new Date(2026, 8, 15);
+export const DEMO_SPECIAL_DATE = 20;
+export const DEMO_REMAINING_DAYS = daysUntilSpecialDate(DEMO_SPECIAL_DATE, DEMO_TODAY);
+export const DEMO_DAILY_BUDGET = calculateDailyBudget(
+  DEMO_INCOME_TOTAL - DEMO_TOTAL_EXPENSE,
+  DEMO_REMAINING_DAYS
+);

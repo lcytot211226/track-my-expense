@@ -5,9 +5,11 @@ import { useCallback, useEffect, useState } from "react";
 import MonthPicker from "./MonthPicker";
 import OverviewChart, { type DailyExpense } from "./OverviewChart";
 import UtilityInlineEditor, { type UtilityDTO } from "./UtilityInlineEditor";
+import CustomItemsEditor, { type CustomItemDTO } from "./CustomItemsEditor";
 import type { TransactionDTO } from "./TransactionsClient";
 import { usePeriod } from "@/lib/usePeriod";
 import { calculateElecCost } from "@/lib/calculateElecCost";
+import { calculateDailyBudget, daysUntilSpecialDate } from "@/lib/calculateDailyBudget";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -40,22 +42,33 @@ function paymentLabel(t: TransactionDTO) {
 export default function OverviewClient() {
   const { period, setPeriod, ready } = usePeriod();
   const [utility, setUtility] = useState<UtilityDTO | null>(null);
+  const [customItems, setCustomItems] = useState<CustomItemDTO[]>([]);
   const [transactions, setTransactions] = useState<TransactionDTO[]>([]);
   const [loading, setLoading] = useState(true);
+  const [specialDate, setSpecialDate] = useState<number | null>(null);
 
   const { year, month } = parsePeriod(period);
 
+  useEffect(() => {
+    fetch("/api/auth/me")
+      .then((res) => res.json())
+      .then((data) => setSpecialDate(typeof data.specialDate === "number" ? data.specialDate : null));
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
-    const [utilityRes, transactionsRes] = await Promise.all([
+    const [utilityRes, customItemsRes, transactionsRes] = await Promise.all([
       fetch(`/api/utilities?year=${year}&month=${month}`),
+      fetch(`/api/custom-items?year=${year}&month=${month}`),
       fetch(`/api/transactions?billingPeriod=${period}`),
     ]);
     const utilityData = await utilityRes.json();
+    const customItemsData = await customItemsRes.json();
     const transactionsData = await transactionsRes.json();
 
     const found = utilityData.utilities?.[0];
     setUtility(found ? { date: found.date, rent: found.rent, elec: found.elec } : null);
+    setCustomItems(customItemsData.items ?? []);
     setTransactions(transactionsData.transactions ?? []);
     setLoading(false);
   }, [year, month, period]);
@@ -75,7 +88,14 @@ export default function OverviewClient() {
   const rentCost = utility?.rent ?? 0;
   const elecCost = utility ? calculateElecCost(utility.elec) : 0;
   const utilityCost = rentCost + elecCost;
-  const totalExpense = expenseTotal + utilityCost;
+  const customItemsTotal = customItems.reduce((sum, item) => sum + item.amount, 0);
+  const totalExpense = expenseTotal + utilityCost + customItemsTotal;
+  const balance = incomeTotal - totalExpense;
+
+  const remainingDays = specialDate != null ? daysUntilSpecialDate(specialDate, new Date())+1 : null;
+  const dailyBudget =
+    specialDate != null && remainingDays != null ? calculateDailyBudget(balance, remainingDays) : null;
+  const showDailyBudget = specialDate != null;
 
   // x 軸用交易「實際發生日期」(MM/DD,含月份避免歧義),而不是入帳月份裡的第幾天:
   // 分期/信用卡消費常常是上個月的日期被算進這個月的帳單,MM/DD 才能分清楚是哪一天。
@@ -117,6 +137,8 @@ export default function OverviewClient() {
 
       <UtilityInlineEditor year={year} month={month} utility={utility} loading={loading} onSaved={load} />
 
+      <CustomItemsEditor year={year} month={month} items={customItems} loading={loading} onSaved={load} />
+
       <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mb-4 grid grid-cols-3 gap-4 text-center">
           <div>
@@ -126,15 +148,20 @@ export default function OverviewClient() {
           <div>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">支出</p>
             <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">${totalExpense.toLocaleString()}</p>
-            {utilityCost > 0 && (
-              <p className="text-xs text-zinc-400 dark:text-zinc-500">含房租電費 ${utilityCost.toLocaleString()}</p>
-            )}
           </div>
           <div>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">結餘</p>
-            <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              ${(incomeTotal - totalExpense).toLocaleString()}
-            </p>
+            <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">${balance.toLocaleString()}</p>
+          </div>
+        </div>
+        <div className="mb-4 grid grid-cols-2 gap-4 text-center">
+          <div>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">距結算日</p>
+            <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{remainingDays} 天</p>
+          </div>
+          <div>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">每日可花</p>
+            <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">{dailyBudget != null ? `$${Math.floor(dailyBudget).toLocaleString()}` : "NaN"}</p>
           </div>
         </div>
 
