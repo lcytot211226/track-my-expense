@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import MonthPicker from "./MonthPicker";
-import OverviewChart from "./OverviewChart";
+import OverviewChart, { type DailyExpense } from "./OverviewChart";
 import UtilityInlineEditor, { type UtilityDTO } from "./UtilityInlineEditor";
 import type { TransactionDTO } from "./TransactionsClient";
 import { usePeriod } from "@/lib/usePeriod";
@@ -81,9 +81,13 @@ export default function OverviewClient() {
   // 分期/信用卡消費常常是上個月的日期被算進這個月的帳單,MM/DD 才能分清楚是哪一天。
   // 範圍取這個月帳單裡所有支出「實際日期」的最早~最晚一天,缺的日期補 0;完全沒有支出時退回顯示整個月份。
   const expenseByDate = new Map<string, number>();
+  const expenseItemsByDate = new Map<string, { item: string; amount: number }[]>();
   for (const t of expenseList) {
     const key = t.date.slice(0, 10);
     expenseByDate.set(key, (expenseByDate.get(key) ?? 0) + t.amount);
+    const items = expenseItemsByDate.get(key) ?? [];
+    items.push({ item: t.item, amount: t.amount });
+    expenseItemsByDate.set(key, items);
   }
   const sortedDateKeys = Array.from(expenseByDate.keys()).sort();
   const rangeStart =
@@ -92,9 +96,14 @@ export default function OverviewClient() {
     sortedDateKeys.length > 0
       ? parseISODateToUTC(sortedDateKeys[sortedDateKeys.length - 1])
       : Date.UTC(year, month, 0);
-  const dailyExpense: { label: string; amount: number }[] = [];
+  const dailyExpense: DailyExpense[] = [];
   for (let t = rangeStart; t <= rangeEnd; t += DAY_MS) {
-    dailyExpense.push({ label: formatMMDD(t), amount: expenseByDate.get(isoDateKey(t)) ?? 0 });
+    const key = isoDateKey(t);
+    dailyExpense.push({
+      label: formatMMDD(t),
+      amount: expenseByDate.get(key) ?? 0,
+      items: expenseItemsByDate.get(key) ?? [],
+    });
   }
 
   return (

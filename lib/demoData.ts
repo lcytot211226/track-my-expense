@@ -1,20 +1,20 @@
 /** 首頁展示用的假資料,純粹用來介紹功能,不接資料庫、不會被任何 API 用到。 */
 
 export const DEMO_DAILY_EXPENSE = [
-  { label: "09/01", amount: 0 },
-  { label: "09/02", amount: 320 },
-  { label: "09/03", amount: 650 },
-  { label: "09/04", amount: 0 },
-  { label: "09/05", amount: 0 },
-  { label: "09/06", amount: 1280 },
-  { label: "09/07", amount: 0 },
-  { label: "09/08", amount: 450 },
-  { label: "09/09", amount: 0 },
-  { label: "09/10", amount: 390 },
-  { label: "09/11", amount: 0 },
-  { label: "09/12", amount: 3000 },
-  { label: "09/13", amount: 0 },
-  { label: "09/14", amount: 780 },
+  { label: "09/01", amount: 0, items: [] },
+  { label: "09/02", amount: 320, items: [{ item: "手搖飲", amount: 320 }] },
+  { label: "09/03", amount: 650, items: [{ item: "聚餐", amount: 650 }] },
+  { label: "09/04", amount: 0, items: [] },
+  { label: "09/05", amount: 0, items: [] },
+  { label: "09/06", amount: 1280, items: [{ item: "家樂福採買", amount: 1280 }] },
+  { label: "09/07", amount: 0, items: [] },
+  { label: "09/08", amount: 450, items: [{ item: "Netflix + Spotify", amount: 450 }] },
+  { label: "09/09", amount: 0, items: [] },
+  { label: "09/10", amount: 390, items: [{ item: "早餐", amount: 390 }] },
+  { label: "09/11", amount: 0, items: [] },
+  { label: "09/12", amount: 3000, items: [{ item: "筆電分期(第2/12期)", amount: 3000 }] },
+  { label: "09/13", amount: 0, items: [] },
+  { label: "09/14", amount: 780, items: [{ item: "聚餐", amount: 780 }] },
 ];
 
 export const DEMO_INCOME_TOTAL = 45000;

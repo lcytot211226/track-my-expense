@@ -10,6 +10,19 @@ function toDateInputValue(date: string) {
   return date.slice(0, 10);
 }
 
+function toLocalDateString(d: Date) {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function shiftDate(date: string, days: number) {
+  const d = new Date(`${date}T00:00:00`);
+  d.setDate(d.getDate() + days);
+  return toLocalDateString(d);
+}
+
 export default function TransactionForm({
   type,
   cards,
@@ -29,7 +42,7 @@ export default function TransactionForm({
 }) {
   const itemInputRef = useRef<HTMLInputElement>(null);
   const [date, setDate] = useState(
-    transaction ? toDateInputValue(transaction.date) : new Date().toISOString().slice(0, 10)
+    transaction ? toDateInputValue(transaction.date) : toLocalDateString(new Date())
   );
   const [category, setCategory] = useState<TransactionCategory>(
     type === "income" ? "cash" : (transaction?.category ?? "cash")
@@ -122,19 +135,37 @@ export default function TransactionForm({
   return (
     <form
       onSubmit={handleSubmit}
-      className="grid grid-cols-1 gap-4 rounded-lg border border-zinc-200 bg-white p-4 sm:grid-cols-3 dark:border-zinc-800 dark:bg-zinc-900"
+      className="grid grid-cols-1 gap-4 sm:grid-cols-3"
     >
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
           {isCreatingInstallmentGroup ? "第一期日期" : "日期"}
         </label>
-        <input
-          type="date"
-          required
-          value={date}
-          onChange={(e) => setDate(e.target.value)}
-          className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
-        />
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={() => setDate((d) => shiftDate(d, -1))}
+            aria-label="前一天"
+            className="shrink-0 rounded-md border border-zinc-300 px-2 py-2 text-sm text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            &lt;
+          </button>
+          <input
+            type="date"
+            required
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
+          />
+          <button
+            type="button"
+            onClick={() => setDate((d) => shiftDate(d, 1))}
+            aria-label="後一天"
+            className="shrink-0 rounded-md border border-zinc-300 px-2 py-2 text-sm text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+          >
+            &gt;
+          </button>
+        </div>
       </div>
 
       {type === "expense" && (
@@ -152,7 +183,7 @@ export default function TransactionForm({
           </select>
         </div>
       )}
-      {category !== "cash" && (
+      {category !== "cash" ? (
         <div>
           <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">信用卡</label>
           <select
@@ -171,7 +202,7 @@ export default function TransactionForm({
             ))}
           </select>
         </div>
-      )}
+      ) : <div></div>}
 
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">項目</label>

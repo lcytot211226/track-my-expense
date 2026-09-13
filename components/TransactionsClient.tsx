@@ -4,6 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import type { CardDTO } from "./CardForm";
 import TransactionForm from "./TransactionForm";
 import MonthPicker from "./MonthPicker";
+import ConfirmDialog from "./ConfirmDialog";
+import Modal from "./Modal";
 import { usePeriod } from "@/lib/usePeriod";
 
 export type TransactionDTO = {
@@ -39,6 +41,7 @@ export default function TransactionsClient({
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [editing, setEditing] = useState<TransactionDTO | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<TransactionDTO | null>(null);
 
   const showCardFilter = category === "credit_card" || category === "installment";
 
@@ -72,12 +75,14 @@ export default function TransactionsClient({
     setEditing(null);
   }
 
-  async function handleDelete(t: TransactionDTO) {
-    const confirmMessage = t.installmentInfo
-      ? `這是分期交易(共 ${t.installmentInfo.totalNumber} 期),刪除會把全部 ${t.installmentInfo.totalNumber} 期一起刪掉,確定嗎?`
-      : "確定要刪除這筆交易嗎?";
-    if (!confirm(confirmMessage)) return;
-    await fetch(`/api/transactions/${t._id}`, { method: "DELETE" });
+  function handleDelete(t: TransactionDTO) {
+    setDeleteTarget(t);
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    await fetch(`/api/transactions/${deleteTarget._id}`, { method: "DELETE" });
+    setDeleteTarget(null);
     load();
   }
 
@@ -126,8 +131,9 @@ export default function TransactionsClient({
         </button>
       </div>
 
-      {(showForm || editing) && (
+      <Modal open={showForm || !!editing} onClose={closeForm} title={editing ? `編輯${label}` : `新增${label}`}>
         <TransactionForm
+          key={editing ? editing._id : "new"}
           type={type}
           cards={initialCards}
           transaction={editing ?? undefined}
@@ -138,7 +144,7 @@ export default function TransactionsClient({
           onAdded={load}
           onCancel={closeForm}
         />
-      )}
+      </Modal>
 
       <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
@@ -189,6 +195,19 @@ export default function TransactionsClient({
           </li>
         ))}
       </ul>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="刪除確認"
+        message={
+          deleteTarget?.installmentInfo
+            ? `這是分期交易(共 ${deleteTarget.installmentInfo.totalNumber} 期),刪除會把全部 ${deleteTarget.installmentInfo.totalNumber} 期一起刪掉,確定嗎?`
+            : "確定要刪除這筆交易嗎?"
+        }
+        confirmLabel="刪除"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }

@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import ConfirmDialog from "./ConfirmDialog";
 
 export type CardDTO = {
   _id: string;
@@ -18,6 +19,7 @@ export default function CardForm({ initialCards }: { initialCards: CardDTO[] }) 
   const [form, setForm] = useState(emptyForm);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<CardDTO | null>(null);
 
   function startEdit(card: CardDTO) {
     setEditingId(card._id);
@@ -62,9 +64,14 @@ export default function CardForm({ initialCards }: { initialCards: CardDTO[] }) 
     router.refresh();
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("確定要刪除這張卡片嗎?")) return;
-    await fetch(`/api/cards/${id}`, { method: "DELETE" });
+  function handleDelete(card: CardDTO) {
+    setDeleteTarget(card);
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    await fetch(`/api/cards/${deleteTarget._id}`, { method: "DELETE" });
+    setDeleteTarget(null);
     router.refresh();
   }
 
@@ -153,7 +160,7 @@ export default function CardForm({ initialCards }: { initialCards: CardDTO[] }) 
               </button>
               <button
                 type="button"
-                onClick={() => handleDelete(card._id)}
+                onClick={() => handleDelete(card)}
                 className="rounded-md border border-red-300 px-3 py-1.5 text-sm font-medium text-red-600 dark:border-red-800 dark:text-red-400"
               >
                 刪除
@@ -165,6 +172,15 @@ export default function CardForm({ initialCards }: { initialCards: CardDTO[] }) 
           <p className="text-sm text-zinc-500 dark:text-zinc-400">尚未新增任何信用卡</p>
         )}
       </ul>
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        title="刪除確認"
+        message={`確定要刪除「${deleteTarget?.name ?? ""}」這張卡片嗎?`}
+        confirmLabel="刪除"
+        onConfirm={confirmDelete}
+        onCancel={() => setDeleteTarget(null)}
+      />
     </div>
   );
 }
