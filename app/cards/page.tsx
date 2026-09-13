@@ -1,12 +1,14 @@
 import { connectToDatabase } from "@/lib/mongodb";
 import Card from "@/lib/models/Card";
 import CardForm, { type CardDTO } from "@/components/CardForm";
+import { getCurrentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function CardsPage() {
+  const auth = await getCurrentUser();
   await connectToDatabase();
-  const cards = await Card.find().sort({ createdAt: 1 }).lean();
+  const cards = await Card.find({ user: auth!.userId }).sort({ createdAt: 1 }).lean();
 
   const cardDTOs: CardDTO[] = cards.map((card) => ({
     _id: card._id.toString(),
