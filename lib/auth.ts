@@ -11,7 +11,10 @@ if (!JWT_SECRET) {
 const secretKey = new TextEncoder().encode(JWT_SECRET);
 
 export const AUTH_COOKIE_NAME = "auth_token";
-const TOKEN_TTL = "7d";
+// Session TTL 拉長,並在 proxy.ts 內每次請求時滑動延長(sliding session),
+// 只要使用者在效期內有造訪過,登入就會一直維持,達到「自動保持登入」的效果。
+const TOKEN_TTL = "30d";
+export const AUTH_COOKIE_MAX_AGE = 60 * 60 * 24 * 30;
 
 export type AuthTokenPayload = {
   userId: string;

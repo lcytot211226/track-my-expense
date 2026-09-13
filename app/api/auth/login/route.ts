@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { connectToDatabase } from "@/lib/mongodb";
 import User from "@/lib/models/User";
-import { AUTH_COOKIE_NAME, signAuthToken, verifyPassword } from "@/lib/auth";
+import { AUTH_COOKIE_MAX_AGE, AUTH_COOKIE_NAME, signAuthToken, verifyPassword } from "@/lib/auth";
 
 export async function POST(request: Request) {
   const { email, password } = await request.json();
@@ -26,7 +26,7 @@ export async function POST(request: Request) {
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: 60 * 60 * 24 * 7,
+    maxAge: AUTH_COOKIE_MAX_AGE,
   });
 
   return NextResponse.json({ success: true });
