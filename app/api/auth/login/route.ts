@@ -18,6 +18,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "帳號或密碼錯誤" }, { status: 401 });
   }
 
+  if (!user.emailVerified) {
+    return NextResponse.json(
+      { error: "帳號尚未啟用,請輸入驗證碼", needsVerification: true, email: user.email },
+      { status: 403 }
+    );
+  }
+
   const token = await signAuthToken({ userId: user._id.toString(), email: user.email });
 
   const cookieStore = await cookies();

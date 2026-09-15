@@ -8,12 +8,19 @@ export default function RegisterPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
+
+    if (password !== confirmPassword) {
+      setError("兩次輸入的密碼不一致");
+      return;
+    }
+
     setLoading(true);
 
     const res = await fetch("/api/auth/register", {
@@ -29,7 +36,12 @@ export default function RegisterPage() {
       return;
     }
 
-    router.push("/login");
+    const query = new URLSearchParams({ email: data.email ?? email });
+    if (data.error) {
+      // 帳號已建立成功,只是驗證信寄送失敗,讓驗證頁面顯示提醒並可重新寄送。
+      query.set("emailError", "1");
+    }
+    router.push(`/verify-email?${query.toString()}`);
   }
 
   return (
@@ -72,6 +84,16 @@ export default function RegisterPage() {
             minLength={4}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
+            className="mb-4 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
+          />
+
+          <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">確認密碼</label>
+          <input
+            type="password"
+            required
+            minLength={4}
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
             className="mb-4 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
           />
 

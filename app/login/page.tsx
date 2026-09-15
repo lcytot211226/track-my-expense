@@ -25,6 +25,10 @@ export default function LoginPage() {
 
     setLoading(false);
     if (!res.ok) {
+      if (data.needsVerification) {
+        router.push(`/verify-email?email=${encodeURIComponent(data.email ?? email)}`);
+        return;
+      }
       setError(data.error ?? "登入失敗");
       return;
     }
@@ -66,7 +70,12 @@ export default function LoginPage() {
             className="mb-4 w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
           />
 
-          <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">密碼</label>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="block text-sm font-medium text-zinc-700 dark:text-zinc-300">密碼</label>
+            <Link href="/forgot-password" className="text-xs font-medium text-[#2a78d6] dark:text-[#3987e5]">
+              忘記密碼?
+            </Link>
+          </div>
           <input
             type="password"
             required

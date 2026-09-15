@@ -26,6 +26,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ```
 MONGODB_URI=mongodb+srv://<user>:<password>@<cluster>/<dbname>?retryWrites=true&w=majority
 JWT_SECRET=<自訂一組亂數字串,用於簽發登入 token>
+EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 ```
 
 > 請勿將 `.env.local` 提交到 git,記得加入 `.gitignore`。
@@ -43,16 +44,20 @@ JWT_SECRET=<自訂一組亂數字串,用於簽發登入 token>
   password: string,       // bcrypt hash 過,不可存明文
   createDate: Date,       // 註冊時間
   specialDate: number,    // DD,1-31,用途待定(先保留欄位即可,例如未來可作為個人化的「月結算日」使用)
+  emailVerified: boolean, // 是否已完成 email 驗證碼啟用,預設 false
+  verificationCodeHash: string | null,   // 註冊啟用 / 忘記密碼共用的 6 碼驗證碼(bcrypt hash 過)
+  verificationCodeExpires: Date | null,  // 驗證碼有效期限(10 分鐘)
   createdAt: Date,
   updatedAt: Date
 }
 ```
 
 > **註冊規則**:
-> - 提供簡單的註冊頁面(email + password)
-> - 後端在建立新帳號前,先計算 `User` collection 目前的總筆數,若 **已達 2 筆則拒絕註冊**(回傳錯誤訊息,例如「已達註冊上限」)
-> - 不需要忘記密碼 / 修改密碼功能(先不做)
-> - 登入後用 JWT 存在 httpOnly cookie,所有頁面(除了 /login、/register)都需要驗證身份,未登入導回 /login(單一入口的概念:全站都要先登入才能使用)
+> - 提供簡單的註冊頁面(email + password),不限制帳號數量
+> - 註冊後用 Resend(`.env.local` 的 `EMAIL_KEY`)寄送 6 位數驗證碼到指定信箱,10 分鐘內輸入正確驗證碼(`/verify-email` 頁面)才會正式啟用帳號(`emailVerified = true`)
+> - 帳號尚未啟用時嘗試登入,會自動導向 `/verify-email` 輸入驗證碼(可在該頁重新寄送)
+> - 忘記密碼(`/forgot-password`):輸入 email 寄送驗證碼,驗證碼與新密碼一起送出後更新密碼,同時視為完成 email 驗證
+> - 登入後用 JWT 存在 httpOnly cookie,所有頁面(除了 /login、/register、/verify-email、/forgot-password)都需要驗證身份,未登入導回 /login(單一入口的概念:全站都要先登入才能使用)
 
 ### Card(信用卡)
 
@@ -137,7 +142,9 @@ JWT_SECRET=<自訂一組亂數字串,用於簽發登入 token>
 | 路徑 | 說明 |
 |---|---|
 | `/login` | 登入頁 |
-| `/register` | 註冊頁(受最多 2 個帳號限制) |
+| `/register` | 註冊頁,不限制帳號數量 |
+| `/verify-email` | 輸入註冊 / 忘記密碼驗證碼,啟用帳號 |
+| `/forgot-password` | 忘記密碼:寄送驗證碼 + 設定新密碼 |
 | `/` | 導覽頁,先留空(之後再補內容) |
 | `/income` | 收入總覽(列表 + 篩選) |
 | `/expense` | 支出總覽(列表 + 篩選) |

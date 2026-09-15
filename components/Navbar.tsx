@@ -12,7 +12,7 @@ const NAV_LINKS = [
   { href: "/cards", label: "信用卡" },
 ];
 
-const HIDDEN_PATHS = ["/", "/login", "/register"];
+const HIDDEN_PATHS = ["/", "/login", "/register", "/verify-email", "/forgot-password"];
 
 function SettingsIcon() {
   return (
