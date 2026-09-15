@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Navbar from "@/components/Navbar";
+import { ToastProvider } from "@/components/ToastProvider";
+import RouteChangeToast from "@/components/RouteChangeToast";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -47,8 +49,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>
       <body className="min-h-full flex flex-col">
-        <Navbar />
-        <main className="flex-1">{children}</main>
+        <ToastProvider>
+          <RouteChangeToast />
+          <Navbar />
+          <main className="flex-1">{children}</main>
+        </ToastProvider>
       </body>
     </html>
   );

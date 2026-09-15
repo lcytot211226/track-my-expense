@@ -10,6 +10,7 @@ import type { TransactionDTO } from "./TransactionsClient";
 import { usePeriod } from "@/lib/usePeriod";
 import { calculateElecCost } from "@/lib/calculateElecCost";
 import { calculateDailyBudget, daysUntilSpecialDate } from "@/lib/calculateDailyBudget";
+import { useToast } from "./ToastProvider";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -41,6 +42,7 @@ function paymentLabel(t: TransactionDTO) {
 
 export default function OverviewClient() {
   const { period, setPeriod, ready } = usePeriod();
+  const { showLoading, dismiss } = useToast();
   const [utility, setUtility] = useState<UtilityDTO | null>(null);
   const [customItems, setCustomItems] = useState<CustomItemDTO[]>([]);
   const [transactions, setTransactions] = useState<TransactionDTO[]>([]);
@@ -57,21 +59,26 @@ export default function OverviewClient() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [utilityRes, customItemsRes, transactionsRes] = await Promise.all([
-      fetch(`/api/utilities?year=${year}&month=${month}`),
-      fetch(`/api/custom-items?year=${year}&month=${month}`),
-      fetch(`/api/transactions?billingPeriod=${period}`),
-    ]);
-    const utilityData = await utilityRes.json();
-    const customItemsData = await customItemsRes.json();
-    const transactionsData = await transactionsRes.json();
+    const toastId = showLoading("資料載入中…");
+    try {
+      const [utilityRes, customItemsRes, transactionsRes] = await Promise.all([
+        fetch(`/api/utilities?year=${year}&month=${month}`),
+        fetch(`/api/custom-items?year=${year}&month=${month}`),
+        fetch(`/api/transactions?billingPeriod=${period}`),
+      ]);
+      const utilityData = await utilityRes.json();
+      const customItemsData = await customItemsRes.json();
+      const transactionsData = await transactionsRes.json();
 
-    const found = utilityData.utilities?.[0];
-    setUtility(found ? { date: found.date, rent: found.rent, elec: found.elec } : null);
-    setCustomItems(customItemsData.items ?? []);
-    setTransactions(transactionsData.transactions ?? []);
-    setLoading(false);
-  }, [year, month, period]);
+      const found = utilityData.utilities?.[0];
+      setUtility(found ? { date: found.date, rent: found.rent, elec: found.elec } : null);
+      setCustomItems(customItemsData.items ?? []);
+      setTransactions(transactionsData.transactions ?? []);
+    } finally {
+      dismiss(toastId);
+      setLoading(false);
+    }
+  }, [year, month, period, showLoading, dismiss]);
 
   useEffect(() => {
     // 等 usePeriod 確定好正確的月份(ready)才 fetch,避免先用猜的月份抓一次資料造成畫面閃爍。

@@ -53,6 +53,8 @@ const FEATURES = [
 
 export default async function Home() {
   const user = await getCurrentUser();
+  const ctaHref = user ? "/overview" : "/login";
+  const ctaLabel = user ? "前往總覽" : "立即開始";
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -103,10 +105,10 @@ export default async function Home() {
             不只是記錄花了多少錢,而是照著結帳日、繳款日、分期期數,幫你算出這筆錢到底會出現在哪個月的帳單裡。
           </p>
           <Link
-            href="/register"
+            href={ctaHref}
             className="mt-2 rounded-md bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
           >
-            立即開始
+            {ctaLabel}
           </Link>
         </div>
       </section>
@@ -271,10 +273,10 @@ export default async function Home() {
 
       <footer className="mx-auto w-full max-w-5xl px-4 pb-16 text-center">
         <Link
-          href="/register"
+          href={ctaHref}
           className="inline-block rounded-md bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
         >
-          立即開始
+          {ctaLabel}
         </Link>
       </footer>
     </div>
