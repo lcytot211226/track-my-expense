@@ -1,8 +1,9 @@
-import { Suspense } from "react";
 import { connectToDatabase } from "@/lib/mongodb";
-import Card from "@/lib/models/Card";
-import TransactionsClient from "@/components/TransactionsClient";
+import Card, { type Card as CardDoc } from "@/lib/models/Card";
+import Subscription from "@/lib/models/Subscription";
+import ExpenseClient from "@/components/ExpenseClient";
 import type { CardDTO } from "@/components/CardForm";
+import type { SubscriptionDTO } from "@/components/SubscriptionsClient";
 import { getCurrentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
@@ -18,12 +19,31 @@ export default async function ExpensePage() {
     paymentDate: card.paymentDate,
   }));
 
+  const subscriptions = await Subscription.find({ user: auth!.userId })
+    .populate<{ card: CardDoc | null }>("card")
+    .sort({ createdAt: 1 })
+    .lean();
+  const subscriptionDTOs: SubscriptionDTO[] = subscriptions.map((sub) => ({
+    _id: sub._id.toString(),
+    item: sub.item,
+    amount: sub.amount,
+    category: sub.category,
+    card: sub.card
+      ? {
+          _id: sub.card._id.toString(),
+          name: sub.card.name,
+          closingDate: sub.card.closingDate,
+          paymentDate: sub.card.paymentDate,
+        }
+      : null,
+    startDate: sub.startDate.toISOString(),
+    lastGeneratedDate: sub.lastGeneratedDate ? sub.lastGeneratedDate.toISOString() : null,
+  }));
+
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <h1 className="mb-6 text-xl font-semibold text-zinc-900 dark:text-zinc-50">支出總覽</h1>
-      <Suspense fallback={null}>
-        <TransactionsClient type="expense" initialCards={cardDTOs} />
-      </Suspense>
+      <ExpenseClient initialCards={cardDTOs} initialSubscriptions={subscriptionDTOs} />
     </div>
   );
 }

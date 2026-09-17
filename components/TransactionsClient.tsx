@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, type ReactNode } from "react";
 import type { CardDTO } from "./CardForm";
 import TransactionForm from "./TransactionForm";
 import MonthPicker from "./MonthPicker";
@@ -19,6 +19,7 @@ export type TransactionDTO = {
   amount: number;
   posted: boolean;
   billingPeriod: string;
+  subscription: string | null;
 };
 
 const CATEGORY_LABEL: Record<TransactionDTO["category"], string> = {
@@ -30,9 +31,15 @@ const CATEGORY_LABEL: Record<TransactionDTO["category"], string> = {
 export default function TransactionsClient({
   type,
   initialCards,
+  refreshToken,
+  actions,
 }: {
   type: "income" | "expense";
   initialCards: CardDTO[];
+  /** 由外層在訂閱新增/編輯/刪除後帶入不同的值,觸發重新讀取交易列表。 */
+  refreshToken?: number;
+  /** 顯示在「新增{label}」按鈕旁邊的額外按鈕(例如訂閱相關操作)。 */
+  actions?: ReactNode;
 }) {
   const { period, setPeriod, ready } = usePeriod();
   const [category, setCategory] = useState("");
@@ -68,7 +75,7 @@ export default function TransactionsClient({
     if (!ready) return;
     // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
-  }, [load, ready]);
+  }, [load, ready, refreshToken]);
 
   function closeForm() {
     setShowForm(false);
@@ -119,16 +126,19 @@ export default function TransactionsClient({
             </select>
           )}
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            setEditing(null);
-            setShowForm(true);
-          }}
-          className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-        >
-          新增{label}
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          {actions}
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(null);
+              setShowForm(true);
+            }}
+            className="rounded-md bg-zinc-900 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+          >
+            新增{label}
+          </button>
+        </div>
       </div>
 
       <Modal open={showForm || !!editing} onClose={closeForm} title={editing ? `編輯${label}` : `新增${label}`}>
@@ -170,6 +180,7 @@ export default function TransactionsClient({
                 {t.card ? ` · ${t.card.name}` : ""}
                 {t.installmentInfo ? ` · 第${t.installmentInfo.currentNumber}/${t.installmentInfo.totalNumber}期` : ""}
                 {!t.posted ? " · 未入帳" : ""}
+                {t.subscription ? " · 訂閱" : ""}
               </p>
             </div>
             <div className="flex items-center gap-3">

@@ -4,6 +4,7 @@ import Transaction from "@/lib/models/Transaction";
 import Card from "@/lib/models/Card";
 import { requireAuth } from "@/lib/auth";
 import { calculateBillingPeriod } from "@/lib/calculateBillingPeriod";
+import { recomputeOverviewSummary } from "@/lib/recomputeOverviewSummary";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -75,6 +76,11 @@ export async function PUT(request: Request, { params }: Context) {
     { new: true, runValidators: true }
   ).populate("card");
 
+  await recomputeOverviewSummary(auth.userId, billingPeriod);
+  if (existing.billingPeriod !== billingPeriod) {
+    await recomputeOverviewSummary(auth.userId, existing.billingPeriod);
+  }
+
   return NextResponse.json({ transaction });
 }
 
@@ -93,13 +99,22 @@ export async function DELETE(_request: Request, { params }: Context) {
 
   // 分期交易(有 installmentGroupId)刪除時,同一組的所有期數要一起刪掉。
   if (existing.installmentGroupId) {
+    const group = await Transaction.find({
+      user: auth.userId,
+      installmentGroupId: existing.installmentGroupId,
+    });
+    const periods = new Set(group.map((t) => t.billingPeriod));
     const result = await Transaction.deleteMany({
       user: auth.userId,
       installmentGroupId: existing.installmentGroupId,
     });
+    for (const period of periods) {
+      await recomputeOverviewSummary(auth.userId, period);
+    }
     return NextResponse.json({ success: true, deletedCount: result.deletedCount });
   }
 
   await Transaction.deleteOne({ _id: id, user: auth.userId });
+  await recomputeOverviewSummary(auth.userId, existing.billingPeriod);
   return NextResponse.json({ success: true, deletedCount: 1 });
 }

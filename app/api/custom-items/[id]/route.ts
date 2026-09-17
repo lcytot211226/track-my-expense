@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import CustomItem from "@/lib/models/CustomItem";
 import { requireAuth } from "@/lib/auth";
+import { recomputeOverviewSummary } from "@/lib/recomputeOverviewSummary";
+import { formatPeriod } from "@/lib/overviewItems";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -23,6 +25,7 @@ export async function PUT(request: Request, { params }: Context) {
   if (!item) {
     return NextResponse.json({ error: "找不到資料" }, { status: 404 });
   }
+  await recomputeOverviewSummary(auth.userId, formatPeriod(item.year, item.month));
   return NextResponse.json({ item });
 }
 
@@ -38,5 +41,6 @@ export async function DELETE(_request: Request, { params }: Context) {
   if (!item) {
     return NextResponse.json({ error: "找不到資料" }, { status: 404 });
   }
+  await recomputeOverviewSummary(auth.userId, formatPeriod(item.year, item.month));
   return NextResponse.json({ success: true });
 }

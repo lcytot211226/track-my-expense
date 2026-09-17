@@ -19,6 +19,19 @@ const UtilitySchema = new Schema(
       ),
       required: true,
     },
+    water: {
+      type: new Schema(
+        {
+          start: { type: Number, required: true, default: 0 },
+          end: { type: Number, required: true, default: 0 },
+          unitPrice: { type: Number, required: true, default: 0 },
+          manualAmount: { type: Number, default: null },
+        },
+        { _id: false }
+      ),
+      required: true,
+      default: () => ({ start: 0, end: 0, unitPrice: 0, manualAmount: null }),
+    },
   },
   { timestamps: true }
 );

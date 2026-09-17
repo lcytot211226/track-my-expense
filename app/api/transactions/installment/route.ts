@@ -6,6 +6,7 @@ import Card from "@/lib/models/Card";
 import { requireAuth } from "@/lib/auth";
 import { calculateBillingPeriod } from "@/lib/calculateBillingPeriod";
 import { addMonthsClamped } from "@/lib/addMonths";
+import { recomputeOverviewSummary } from "@/lib/recomputeOverviewSummary";
 
 /** 建立一筆分期購買:一次生成 totalNumber 筆交易(每期一筆),共用同一個 installmentGroupId。 */
 export async function POST(request: Request) {
@@ -59,5 +60,11 @@ export async function POST(request: Request) {
   });
 
   const transactions = await Transaction.insertMany(docs);
+
+  const touchedPeriods = new Set(docs.map((d) => d.billingPeriod));
+  for (const period of touchedPeriods) {
+    await recomputeOverviewSummary(auth.userId, period);
+  }
+
   return NextResponse.json({ transactions }, { status: 201 });
 }

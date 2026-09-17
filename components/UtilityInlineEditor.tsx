@@ -1,24 +1,129 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { calculateElecCost } from "@/lib/calculateElecCost";
+import { calculateMeterCost, type MeterInfo } from "@/lib/calculateMeterCost";
 
 export type UtilityDTO = {
   date: number;
   rent: number;
-  elec: {
-    start: number;
-    end: number;
-    unitPrice: number;
-    manualAmount: number | null;
-  };
+  elec: MeterInfo;
+  water: MeterInfo;
 };
+
+type MeterField = "elec" | "water";
+
+const emptyMeter: MeterInfo = { start: 0, end: 0, unitPrice: 0, manualAmount: null };
 
 const emptyUtility: UtilityDTO = {
   date: 1,
   rent: 0,
-  elec: { start: 0, end: 0, unitPrice: 0, manualAmount: null },
+  elec: { ...emptyMeter },
+  water: { ...emptyMeter },
 };
+
+const METER_LABEL: Record<MeterField, { name: string; unit: string; short: string }> = {
+  elec: { name: "電費", unit: "每度電價", short: "電表" },
+  water: { name: "水費", unit: "每度水價", short: "水表" },
+};
+
+function MeterEditor({
+  field,
+  meter,
+  onChange,
+}: {
+  field: MeterField;
+  meter: MeterInfo;
+  onChange: (next: MeterInfo) => void;
+}) {
+  const label = METER_LABEL[field];
+  const isManual = meter.manualAmount !== null;
+
+  function setManualMode(manual: boolean) {
+    onChange({ ...meter, manualAmount: manual ? (meter.manualAmount ?? 0) : null });
+  }
+
+  return (
+    <div className="mt-4">
+      <div className="mb-2 flex items-center justify-between">
+        <label className="text-sm text-zinc-500 dark:text-zinc-400">{label.name}計算方式</label>
+        <div className="flex gap-1 rounded-md border border-zinc-300 p-0.5 text-sm dark:border-zinc-700">
+          <button
+            type="button"
+            onClick={() => setManualMode(false)}
+            className={`rounded px-2 py-1 ${
+              !isManual
+                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                : "text-zinc-600 dark:text-zinc-300"
+            }`}
+          >
+            依{label.short}計算
+          </button>
+          <button
+            type="button"
+            onClick={() => setManualMode(true)}
+            className={`rounded px-2 py-1 ${
+              isManual
+                ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                : "text-zinc-600 dark:text-zinc-300"
+            }`}
+          >
+            直接輸入金額
+          </button>
+        </div>
+      </div>
+
+      {!isManual ? (
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <div>
+            <label className="mb-1 block text-sm text-zinc-500 dark:text-zinc-400">{label.short}起始</label>
+            <input
+              type="number"
+              min={0}
+              value={meter.start}
+              onChange={(e) => onChange({ ...meter, start: Number(e.target.value) })}
+              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm text-zinc-500 dark:text-zinc-400">{label.short}結束</label>
+            <input
+              type="number"
+              min={0}
+              value={meter.end}
+              onChange={(e) => onChange({ ...meter, end: Number(e.target.value) })}
+              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-sm text-zinc-500 dark:text-zinc-400">{label.unit}</label>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              value={meter.unitPrice}
+              onChange={(e) => onChange({ ...meter, unitPrice: Number(e.target.value) })}
+              className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
+            />
+          </div>
+          <p className="col-span-2 text-sm text-zinc-500 sm:col-span-3 dark:text-zinc-400">
+            預估{label.name}:${calculateMeterCost(meter).toLocaleString()}
+          </p>
+        </div>
+      ) : (
+        <div>
+          <label className="mb-1 block text-sm text-zinc-500 dark:text-zinc-400">{label.name}金額</label>
+          <input
+            type="number"
+            min={0}
+            value={meter.manualAmount ?? 0}
+            onChange={(e) => onChange({ ...meter, manualAmount: Number(e.target.value) })}
+            className="w-full max-w-xs rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
+          />
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function UtilityInlineEditor({
   year,
@@ -42,15 +147,6 @@ export default function UtilityInlineEditor({
     setForm(utility ?? emptyUtility);
     setError(null);
     setEditing(true);
-  }
-
-  const isManual = form.elec.manualAmount !== null;
-
-  function setManualMode(manual: boolean) {
-    setForm({
-      ...form,
-      elec: { ...form.elec, manualAmount: manual ? (form.elec.manualAmount ?? 0) : null },
-    });
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -82,7 +178,7 @@ export default function UtilityInlineEditor({
       return (
         <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
           <div className="mb-3 flex items-center justify-between">
-            <h2 className="font-medium text-zinc-900 dark:text-zinc-50">房租電費</h2>
+            <h2 className="font-medium text-zinc-900 dark:text-zinc-50">房租水電費</h2>
           </div>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
             {[0, 1, 2, 3].map((i) => (
@@ -97,15 +193,21 @@ export default function UtilityInlineEditor({
     }
 
     const display = utility ?? emptyUtility;
-    const displayIsManual = display.elec.manualAmount !== null;
-    const elecCost = calculateElecCost(display.elec);
+    const elecCost = calculateMeterCost(display.elec);
+    const waterCost = calculateMeterCost(display.water);
+    const totalCost = display.rent + elecCost + waterCost;
 
     return (
       <div
         className={`rounded-lg border border-zinc-200 bg-white p-4 transition-opacity dark:border-zinc-800 dark:bg-zinc-900 ${loading ? "opacity-60" : ""}`}
       >
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-medium text-zinc-900 dark:text-zinc-50">房租電費</h2>
+          <div className="flex items-baseline gap-2">
+            <h2 className="font-medium text-zinc-900 dark:text-zinc-50">房租水電費</h2>
+            <span className="text-sm text-zinc-500 dark:text-zinc-400">
+              總共 ${totalCost.toLocaleString()} <span className="font-semibold text-zinc-900 dark:text-zinc-50"></span>
+            </span>
+          </div>
           <button
             type="button"
             onClick={startEdit}
@@ -124,16 +226,12 @@ export default function UtilityInlineEditor({
             <p className="font-medium text-zinc-900 dark:text-zinc-50">${display.rent.toLocaleString()}</p>
           </div>
           <div>
-            <p className="text-sm text-zinc-500 dark:text-zinc-400">
-              {displayIsManual ? "電表" : "電表(起/迄)"}
-            </p>
-            <p className="font-medium text-zinc-900 dark:text-zinc-50">
-              {displayIsManual ? "手動輸入電費" : `${display.elec.start} / ${display.elec.end}`}
-            </p>
-          </div>
-          <div>
             <p className="text-sm text-zinc-500 dark:text-zinc-400">電費</p>
             <p className="font-medium text-zinc-900 dark:text-zinc-50">${elecCost.toLocaleString()}</p>
+          </div>
+          <div>
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">水費</p>
+            <p className="font-medium text-zinc-900 dark:text-zinc-50">${waterCost.toLocaleString()}</p>
           </div>
         </div>
       </div>
@@ -145,7 +243,7 @@ export default function UtilityInlineEditor({
       onSubmit={handleSubmit}
       className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
     >
-      <h2 className="mb-3 font-medium text-zinc-900 dark:text-zinc-50">房租電費</h2>
+      <h2 className="mb-3 font-medium text-zinc-900 dark:text-zinc-50">房租水電費</h2>
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         <div>
           <label className="mb-1 block text-sm text-zinc-500 dark:text-zinc-400">帳單日</label>
@@ -170,85 +268,8 @@ export default function UtilityInlineEditor({
         </div>
       </div>
 
-      <div className="mt-4">
-        <div className="mb-2 flex items-center justify-between">
-          <label className="text-sm text-zinc-500 dark:text-zinc-400">電費計算方式</label>
-          <div className="flex gap-1 rounded-md border border-zinc-300 p-0.5 text-sm dark:border-zinc-700">
-            <button
-              type="button"
-              onClick={() => setManualMode(false)}
-              className={`rounded px-2 py-1 ${
-                !isManual
-                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                  : "text-zinc-600 dark:text-zinc-300"
-              }`}
-            >
-              依電表計算
-            </button>
-            <button
-              type="button"
-              onClick={() => setManualMode(true)}
-              className={`rounded px-2 py-1 ${
-                isManual
-                  ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
-                  : "text-zinc-600 dark:text-zinc-300"
-              }`}
-            >
-              直接輸入金額
-            </button>
-          </div>
-        </div>
-
-        {!isManual ? (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-            <div>
-              <label className="mb-1 block text-sm text-zinc-500 dark:text-zinc-400">電表起始</label>
-              <input
-                type="number"
-                min={0}
-                value={form.elec.start}
-                onChange={(e) => setForm({ ...form, elec: { ...form.elec, start: Number(e.target.value) } })}
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm text-zinc-500 dark:text-zinc-400">電表結束</label>
-              <input
-                type="number"
-                min={0}
-                value={form.elec.end}
-                onChange={(e) => setForm({ ...form, elec: { ...form.elec, end: Number(e.target.value) } })}
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
-              />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm text-zinc-500 dark:text-zinc-400">每度電價</label>
-              <input
-                type="number"
-                min={0}
-                step="0.01"
-                value={form.elec.unitPrice}
-                onChange={(e) => setForm({ ...form, elec: { ...form.elec, unitPrice: Number(e.target.value) } })}
-                className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
-              />
-            </div>
-            <p className="col-span-2 text-sm text-zinc-500 sm:col-span-3 dark:text-zinc-400">
-              預估電費:${calculateElecCost(form.elec).toLocaleString()}
-            </p>
-          </div>
-        ) : (
-          <div>
-            <label className="mb-1 block text-sm text-zinc-500 dark:text-zinc-400">電費金額</label>
-            <input
-              type="number"
-              min={0}
-              value={form.elec.manualAmount ?? 0}
-              onChange={(e) => setForm({ ...form, elec: { ...form.elec, manualAmount: Number(e.target.value) } })}
-              className="w-full max-w-xs rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
-            />
-          </div>
-        )}
-      </div>
+      <MeterEditor field="elec" meter={form.elec} onChange={(next) => setForm({ ...form, elec: next })} />
+      <MeterEditor field="water" meter={form.water} onChange={(next) => setForm({ ...form, water: next })} />
 
       {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 

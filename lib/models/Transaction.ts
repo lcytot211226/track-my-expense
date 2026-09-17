@@ -27,6 +27,8 @@ const TransactionSchema = new Schema(
     billingPeriod: { type: String, required: true },
     /** 同一筆分期購買一次生成的所有期數共用這個 id,刪除時整組一起刪。 */
     installmentGroupId: { type: Schema.Types.ObjectId, default: null },
+    /** 若此筆是訂閱惰性生成出來的,記錄來源訂閱;訂閱之後被編輯/刪除都不會回頭修改這筆。 */
+    subscription: { type: Schema.Types.ObjectId, ref: "Subscription", default: null },
   },
   { timestamps: true }
 );

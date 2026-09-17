@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import CustomItem from "@/lib/models/CustomItem";
 import { requireAuth } from "@/lib/auth";
+import { recomputeOverviewSummary } from "@/lib/recomputeOverviewSummary";
+import { formatPeriod } from "@/lib/overviewItems";
 
 export async function GET(request: Request) {
   const auth = await requireAuth();
@@ -35,5 +37,6 @@ export async function POST(request: Request) {
 
   await connectToDatabase();
   const item = await CustomItem.create({ user: auth.userId, year, month, name, amount: amount ?? 0 });
+  await recomputeOverviewSummary(auth.userId, formatPeriod(year, month));
   return NextResponse.json({ item }, { status: 201 });
 }

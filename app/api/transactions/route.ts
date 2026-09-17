@@ -4,12 +4,18 @@ import Transaction from "@/lib/models/Transaction";
 import Card from "@/lib/models/Card";
 import { requireAuth } from "@/lib/auth";
 import { calculateBillingPeriod } from "@/lib/calculateBillingPeriod";
+import { generateDueSubscriptionTransactions } from "@/lib/generateSubscriptionTransactions";
+import { recomputeOverviewSummary } from "@/lib/recomputeOverviewSummary";
 
 export async function GET(request: Request) {
   const auth = await requireAuth();
   if (!auth) {
     return NextResponse.json({ error: "未登入" }, { status: 401 });
   }
+
+  await connectToDatabase();
+  // 每次讀取交易列表前,先惰性補生成訂閱到期該記的那幾筆,確保 /expense、/income、/overview 都看得到最新結果。
+  await generateDueSubscriptionTransactions(auth.userId);
 
   const { searchParams } = new URL(request.url);
   const type = searchParams.get("type");
@@ -20,10 +26,14 @@ export async function GET(request: Request) {
   const filter: Record<string, unknown> = { user: auth.userId };
   if (type) filter.type = type;
   if (billingPeriod) filter.billingPeriod = billingPeriod;
-  if (category) filter.category = category;
+  if (category === "credit_card") {
+    // 信用卡分期本質上也是刷卡,查詢信用卡時一併納入分期交易
+    filter.category = { $in: ["credit_card", "installment"] };
+  } else if (category) {
+    filter.category = category;
+  }
   if (card) filter.card = card;
 
-  await connectToDatabase();
   const transactions = await Transaction.find(filter).populate("card").sort({ date: -1 });
   return NextResponse.json({ transactions });
 }
@@ -70,6 +80,8 @@ export async function POST(request: Request) {
     posted: isPosted,
     billingPeriod,
   });
+
+  await recomputeOverviewSummary(auth.userId, billingPeriod);
 
   return NextResponse.json({ transaction }, { status: 201 });
 }
