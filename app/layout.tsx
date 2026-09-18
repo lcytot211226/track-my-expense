@@ -16,10 +16,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "個人記帳",
+  title: "Subanote",
   description: "個人記帳 Web App",
   appleWebApp: {
-    title: "記帳本",
+    title: "Subanote",
     statusBarStyle: "default",
   },
 };

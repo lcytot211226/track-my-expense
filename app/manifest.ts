@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "個人記帳",
-    short_name: "記帳本",
+    name: "Subanote",
+    short_name: "Subanote",
     description: "個人記帳 Web App",
     start_url: "/",
     display: "standalone",
