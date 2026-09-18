@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import ThemeToggle from "./ThemeToggle";
+import NotificationBell from "./NotificationBell";
+import AdminLink from "./AdminLink";
 
 const NAV_LINKS = [
   { href: "/overview", label: "總覽" },
@@ -62,6 +64,7 @@ export default function Navbar() {
         </nav>
 
         <div className="hidden items-center gap-3 sm:flex">
+          <NotificationBell />
           <Link
             href="/settings"
             aria-label="設定"
@@ -70,6 +73,7 @@ export default function Navbar() {
             <SettingsIcon />
           </Link>
           <ThemeToggle />
+          <AdminLink />
           <button
             type="button"
             onClick={handleLogout}
@@ -109,6 +113,7 @@ export default function Navbar() {
           ))}
           <div className="mt-2 flex items-center justify-between px-2">
             <div className="flex items-center gap-2">
+              <NotificationBell />
               <Link
                 href="/settings"
                 onClick={() => setMenuOpen(false)}
@@ -119,13 +124,16 @@ export default function Navbar() {
               </Link>
               <ThemeToggle />
             </div>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-            >
-              登出
-            </button>
+            <div className="flex items-center gap-2">
+              <AdminLink onClick={() => setMenuOpen(false)} />
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                登出
+              </button>
+            </div>
           </div>
         </nav>
       )}

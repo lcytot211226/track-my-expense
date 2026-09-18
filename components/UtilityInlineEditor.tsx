@@ -8,6 +8,11 @@ export type UtilityDTO = {
   rent: number;
   elec: MeterInfo;
   water: MeterInfo;
+  rentEnabled: boolean;
+  elecEnabled: boolean;
+  waterEnabled: boolean;
+  // 總開關,獨立於上面三個個別開關之外,只影響顯示/統計要不要把這個月算進去。
+  enabled: boolean;
 };
 
 type MeterField = "elec" | "water";
@@ -19,6 +24,10 @@ const emptyUtility: UtilityDTO = {
   rent: 0,
   elec: { ...emptyMeter },
   water: { ...emptyMeter },
+  rentEnabled: true,
+  elecEnabled: true,
+  waterEnabled: true,
+  enabled: true,
 };
 
 const METER_LABEL: Record<MeterField, { name: string; unit: string; short: string }> = {
@@ -26,14 +35,52 @@ const METER_LABEL: Record<MeterField, { name: string; unit: string; short: strin
   water: { name: "水費", unit: "每度水價", short: "水表" },
 };
 
+function Switch({
+  checked,
+  onChange,
+  disabled,
+  label,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  disabled?: boolean;
+  label?: string;
+}) {
+  return (
+    <label className={`flex items-center gap-2 text-sm ${disabled ? "opacity-50" : "cursor-pointer"}`}>
+      {label && <span className="text-zinc-600 dark:text-zinc-300">{label}</span>}
+      <button
+        type="button"
+        role="switch"
+        aria-checked={checked}
+        disabled={disabled}
+        onClick={() => onChange(!checked)}
+        className={`relative inline-flex h-5 w-9 shrink-0 items-center rounded-full transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-zinc-400 disabled:cursor-not-allowed ${
+          checked ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-600"
+        }`}
+      >
+        <span
+          className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${
+            checked ? "translate-x-[18px]" : "translate-x-1"
+          }`}
+        />
+      </button>
+    </label>
+  );
+}
+
 function MeterEditor({
   field,
   meter,
+  enabled,
   onChange,
+  onToggleEnabled,
 }: {
   field: MeterField;
   meter: MeterInfo;
+  enabled: boolean;
   onChange: (next: MeterInfo) => void;
+  onToggleEnabled: (next: boolean) => void;
 }) {
   const label = METER_LABEL[field];
   const isManual = meter.manualAmount !== null;
@@ -43,9 +90,12 @@ function MeterEditor({
   }
 
   return (
-    <div className="mt-4">
-      <div className="mb-2 flex items-center justify-between">
-        <label className="text-sm text-zinc-500 dark:text-zinc-400">{label.name}計算方式</label>
+    <div className="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-3">
+          <label className="text-sm text-zinc-500 dark:text-zinc-400">{label.name}計算方式</label>
+          <Switch checked={enabled} onChange={onToggleEnabled} label="計入統計" />
+        </div>
         <div className="flex gap-1 rounded-md border border-zinc-300 p-0.5 text-sm dark:border-zinc-700">
           <button
             type="button"
@@ -142,11 +192,38 @@ export default function UtilityInlineEditor({
   const [form, setForm] = useState<UtilityDTO>(utility ?? emptyUtility);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [togglingAll, setTogglingAll] = useState(false);
 
   function startEdit() {
     setForm(utility ?? emptyUtility);
     setError(null);
     setEditing(true);
+  }
+
+  // 編輯旁的總開關:只決定這個月的房租水電要不要顯示/計入統計,不會動到租金/電費/水費各自的開關,
+  // 資料原封不動送出去,重新打開後租金/電費/水費原本的狀態都還在。若只想關掉其中一項,要點「編輯」進去個別設定。
+  async function toggleMasterEnabled() {
+    const display = utility ?? emptyUtility;
+    const next = !display.enabled;
+    setTogglingAll(true);
+    await fetch("/api/utilities", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        year,
+        month,
+        date: display.date,
+        rent: display.rent,
+        elec: display.elec,
+        water: display.water,
+        rentEnabled: display.rentEnabled,
+        elecEnabled: display.elecEnabled,
+        waterEnabled: display.waterEnabled,
+        enabled: next,
+      }),
+    });
+    setTogglingAll(false);
+    onSaved();
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -193,9 +270,14 @@ export default function UtilityInlineEditor({
     }
 
     const display = utility ?? emptyUtility;
-    const elecCost = calculateMeterCost(display.elec);
-    const waterCost = calculateMeterCost(display.water);
-    const totalCost = display.rent + elecCost + waterCost;
+    const elecCostRaw = calculateMeterCost(display.elec);
+    const waterCostRaw = calculateMeterCost(display.water);
+    const subtotal =
+      (display.rentEnabled ? display.rent : 0) +
+      (display.elecEnabled ? elecCostRaw : 0) +
+      (display.waterEnabled ? waterCostRaw : 0);
+    // 總開關關掉時,顯示上直接擋成 0、整塊變暗,但租金/電費/水費原本的數字跟各自開關狀態都還在,不會被清空。
+    const totalCost = display.enabled ? subtotal : 0;
 
     return (
       <div
@@ -208,30 +290,48 @@ export default function UtilityInlineEditor({
               總共 ${totalCost.toLocaleString()} <span className="font-semibold text-zinc-900 dark:text-zinc-50"></span>
             </span>
           </div>
-          <button
-            type="button"
-            onClick={startEdit}
-            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:border-zinc-700 dark:text-zinc-200"
-          >
-            編輯
-          </button>
+          <div className="flex items-center gap-3">
+            <div title="總開關:是否把這個月的房租水電計入上方支出/結餘統計;不會動到租金/電費/水費各自的開關。若要個別關閉租金/電費/水費,請點「編輯」">
+              <Switch
+                checked={display.enabled}
+                onChange={toggleMasterEnabled}
+                disabled={togglingAll}
+                label={display.enabled ? "已計入統計" : "未計入統計"}
+              />
+            </div>
+            <button
+              type="button"
+              onClick={startEdit}
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 dark:border-zinc-700 dark:text-zinc-200"
+            >
+              編輯
+            </button>
+          </div>
         </div>
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <div>
+        <div
+          className={`grid grid-cols-2 gap-3 sm:grid-cols-4 transition-opacity ${!display.enabled ? "opacity-40" : ""}`}
+        >
+          <div className="rounded-md border border-zinc-200 p-3 text-center dark:border-zinc-800">
             <p className="text-sm text-zinc-500 dark:text-zinc-400">帳單日</p>
             <p className="font-medium text-zinc-900 dark:text-zinc-50">{display.date} 號</p>
           </div>
-          <div>
+          <div
+            className={`rounded-md border border-zinc-200 p-3 text-center transition-opacity dark:border-zinc-800 ${!display.rentEnabled ? "opacity-40" : ""}`}
+          >
             <p className="text-sm text-zinc-500 dark:text-zinc-400">租金</p>
             <p className="font-medium text-zinc-900 dark:text-zinc-50">${display.rent.toLocaleString()}</p>
           </div>
-          <div>
+          <div
+            className={`rounded-md border border-zinc-200 p-3 text-center transition-opacity dark:border-zinc-800 ${!display.elecEnabled ? "opacity-40" : ""}`}
+          >
             <p className="text-sm text-zinc-500 dark:text-zinc-400">電費</p>
-            <p className="font-medium text-zinc-900 dark:text-zinc-50">${elecCost.toLocaleString()}</p>
+            <p className="font-medium text-zinc-900 dark:text-zinc-50">${elecCostRaw.toLocaleString()}</p>
           </div>
-          <div>
+          <div
+            className={`rounded-md border border-zinc-200 p-3 text-center transition-opacity dark:border-zinc-800 ${!display.waterEnabled ? "opacity-40" : ""}`}
+          >
             <p className="text-sm text-zinc-500 dark:text-zinc-400">水費</p>
-            <p className="font-medium text-zinc-900 dark:text-zinc-50">${waterCost.toLocaleString()}</p>
+            <p className="font-medium text-zinc-900 dark:text-zinc-50">${waterCostRaw.toLocaleString()}</p>
           </div>
         </div>
       </div>
@@ -257,7 +357,14 @@ export default function UtilityInlineEditor({
           />
         </div>
         <div>
-          <label className="mb-1 block text-sm text-zinc-500 dark:text-zinc-400">租金</label>
+          <div className="mb-1 flex items-center justify-between">
+            <label className="block text-sm text-zinc-500 dark:text-zinc-400">租金</label>
+            <Switch
+              checked={form.rentEnabled}
+              onChange={(next) => setForm({ ...form, rentEnabled: next })}
+              label="計入統計"
+            />
+          </div>
           <input
             type="number"
             min={0}
@@ -268,8 +375,20 @@ export default function UtilityInlineEditor({
         </div>
       </div>
 
-      <MeterEditor field="elec" meter={form.elec} onChange={(next) => setForm({ ...form, elec: next })} />
-      <MeterEditor field="water" meter={form.water} onChange={(next) => setForm({ ...form, water: next })} />
+      <MeterEditor
+        field="elec"
+        meter={form.elec}
+        enabled={form.elecEnabled}
+        onChange={(next) => setForm({ ...form, elec: next })}
+        onToggleEnabled={(next) => setForm({ ...form, elecEnabled: next })}
+      />
+      <MeterEditor
+        field="water"
+        meter={form.water}
+        enabled={form.waterEnabled}
+        onChange={(next) => setForm({ ...form, water: next })}
+        onToggleEnabled={(next) => setForm({ ...form, waterEnabled: next })}
+      />
 
       {error && <p className="mt-3 text-sm text-red-600 dark:text-red-400">{error}</p>}
 

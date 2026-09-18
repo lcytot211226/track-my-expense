@@ -144,6 +144,15 @@ export function UserGroupIcon({ className }: IconProps) {
   );
 }
 
+export function BellIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M6 8.5a6 6 0 1 1 12 0c0 3.3 1 5.3 1.6 6.2.35.5-.02 1.3-.63 1.3H5.03c-.6 0-.98-.8-.63-1.3C5 13.8 6 11.8 6 8.5Z" />
+      <path d="M9.5 18.3a2.5 2.5 0 0 0 5 0" />
+    </Svg>
+  );
+}
+
 export function QuestionMarkCircleIcon({ className }: IconProps) {
   return (
     <Svg className={className}>

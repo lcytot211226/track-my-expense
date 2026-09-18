@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import User from "@/lib/models/User";
-import { requireAuth } from "@/lib/auth";
+import { ADMIN_EMAIL, requireAuth } from "@/lib/auth";
 
 export async function GET() {
   const auth = await requireAuth();
@@ -15,7 +15,11 @@ export async function GET() {
     return NextResponse.json({ error: "找不到帳號" }, { status: 404 });
   }
 
-  return NextResponse.json({ email: user.email, specialDate: user.specialDate ?? null });
+  return NextResponse.json({
+    email: user.email,
+    specialDate: user.specialDate ?? null,
+    isAdmin: user.email === ADMIN_EMAIL,
+  });
 }
 
 export async function PATCH(request: Request) {

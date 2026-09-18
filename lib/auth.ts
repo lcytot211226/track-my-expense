@@ -10,6 +10,9 @@ if (!JWT_SECRET) {
 
 const secretKey = new TextEncoder().encode(JWT_SECRET);
 
+/** 唯一能使用 /admin 後台功能(例如發送系統通知)的帳號。 */
+export const ADMIN_EMAIL = "lcytot211226@gmail.com";
+
 export const AUTH_COOKIE_NAME = "auth_token";
 // Session TTL 拉長,並在 proxy.ts 內每次請求時滑動延長(sliding session),
 // 只要使用者在效期內有造訪過,登入就會一直維持,達到「自動保持登入」的效果。

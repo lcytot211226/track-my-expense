@@ -52,10 +52,15 @@ export async function recomputeOverviewSummary(userId: string, period: string) {
     cardTotals.set(key, (cardTotals.get(key) ?? 0) + t.amount);
   }
 
-  const rentCost = utilityDoc?.rent ?? 0;
-  const elecCost = utilityDoc ? calculateMeterCost(safeMeter(utilityDoc.elec)) : 0;
-  const waterCost = utilityDoc ? calculateMeterCost(safeMeter(utilityDoc.water)) : 0;
-  const utilityCost = rentCost + elecCost + waterCost;
+  // 租金/電費/水費各自可以關閉,關閉的項目不計入「房租水電總開銷」,也就不會影響支出/結餘。
+  const rentCost = utilityDoc?.rentEnabled !== false ? utilityDoc?.rent ?? 0 : 0;
+  const elecCost =
+    utilityDoc?.elecEnabled !== false && utilityDoc ? calculateMeterCost(safeMeter(utilityDoc.elec)) : 0;
+  const waterCost =
+    utilityDoc?.waterEnabled !== false && utilityDoc ? calculateMeterCost(safeMeter(utilityDoc.water)) : 0;
+  // 總開關關閉時,不論租金/電費/水費各自的開關是什麼狀態,這個月的房租水電一律不計入統計,
+  // 但不會改動也不會清空租金/電費/水費各自存的開關狀態,重新打開總開關後會照原樣恢復。
+  const utilityCost = utilityDoc?.enabled !== false ? rentCost + elecCost + waterCost : 0;
 
   const customItemsTotal = customItems.reduce((sum, item) => sum + item.amount, 0);
 

@@ -5,6 +5,7 @@ import type { CardDTO } from "./CardForm";
 import ShareForm from "./ShareForm";
 import Modal from "./Modal";
 import ConfirmDialog from "./ConfirmDialog";
+import { sharedItemContribution } from "@/lib/overviewItems";
 import { UserGroupIcon } from "./icons";
 
 export type IncomingShareDTO = {
@@ -40,7 +41,9 @@ function groupByEmail(items: IncomingShareDTO[]): EmailGroup[] {
   return Array.from(map.entries()).map(([email, groupItems]) => ({
     email,
     items: groupItems,
-    includedTotal: groupItems.filter((i) => i.included).reduce((sum, i) => sum + i.amount, 0),
+    includedTotal: groupItems
+      .filter((i) => i.included)
+      .reduce((sum, i) => sum + sharedItemContribution(i.itemKey, i.amount), 0),
   }));
 }
 
@@ -59,7 +62,11 @@ export default function SharedItemsSection({
   const [showDetail, setShowDetail] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<OutgoingShareDTO | null>(null);
-  const [togglingId, setTogglingId] = useState<string | null>(null);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
+  const [saving, setSaving] = useState(false);
+  // 「納入支出」勾選只先改本地狀態,按下「儲存」或關閉視窗前確認要不要儲存時,才一次送出變更,
+  // 避免使用者每勾一次就打一次 API、等一次整頁重新載入。
+  const [localItems, setLocalItems] = useState<IncomingShareDTO[]>(incomingItems);
 
   const loadOutgoing = useCallback(async () => {
     const res = await fetch("/api/shares");
@@ -87,18 +94,73 @@ export default function SharedItemsSection({
     await loadOutgoing();
   }
 
-  async function toggleIncluded(item: IncomingShareDTO) {
-    setTogglingId(item._id);
-    await fetch(`/api/shares/${item._id}`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ included: !item.included }),
+  // 每次打開明細視窗都用伺服器最新的資料重置本地編輯狀態,開始一輪新的勾選。
+  useEffect(() => {
+    if (showDetail) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setLocalItems(incomingItems);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showDetail]);
+
+  const isDirty = localItems.some((item) => {
+    const original = incomingItems.find((i) => i._id === item._id);
+    return original ? original.included !== item.included : false;
+  });
+
+  function toggleIncludedLocal(item: IncomingShareDTO) {
+    // 結餘一律不計入統計,不提供勾選。
+    if (item.itemKey === "balance") return;
+    setLocalItems((prev) =>
+      prev.map((i) => (i._id === item._id ? { ...i, included: !i.included } : i))
+    );
+  }
+
+  async function saveChanges() {
+    const changed = localItems.filter((item) => {
+      const original = incomingItems.find((i) => i._id === item._id);
+      return original && original.included !== item.included;
     });
-    setTogglingId(null);
+    if (changed.length === 0) return;
+    setSaving(true);
+    await Promise.all(
+      changed.map((item) =>
+        fetch(`/api/shares/${item._id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ included: item.included }),
+        })
+      )
+    );
+    setSaving(false);
     onIncomingChanged();
   }
 
-  const groups = groupByEmail(incomingItems);
+  function discardChanges() {
+    setLocalItems(incomingItems);
+  }
+
+  function requestCloseDetail() {
+    if (isDirty) {
+      setShowExitConfirm(true);
+      return;
+    }
+    setShowDetail(false);
+  }
+
+  async function confirmExitSave() {
+    await saveChanges();
+    setShowExitConfirm(false);
+    setShowDetail(false);
+  }
+
+  function confirmExitDiscard() {
+    discardChanges();
+    setShowExitConfirm(false);
+    setShowDetail(false);
+  }
+
+  const groups = groupByEmail(localItems);
   const sharedWithMeEmails = Array.from(new Set(incomingItems.map((i) => i.ownerEmail)));
   const sharedByMeEmails = Array.from(new Set(outgoingShares.map((s) => s.targetEmail)));
 
@@ -162,10 +224,20 @@ export default function SharedItemsSection({
         </div>
       )}
 
-      <Modal open={showDetail} onClose={() => setShowDetail(false)} title="共享參考表">
+      <Modal open={showDetail} onClose={requestCloseDetail} title="共享參考表">
         <div className="flex flex-col gap-5">
           <div>
-            <h3 className="mb-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">別人分享給我(依 email 分類)</h3>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">別人分享給我(依 email 分類)</h3>
+              <button
+                type="button"
+                onClick={saveChanges}
+                disabled={!isDirty || saving}
+                className="shrink-0 rounded-md border border-zinc-900 bg-zinc-900 px-3 py-1 text-xs font-medium text-white disabled:cursor-not-allowed disabled:border-zinc-300 disabled:bg-zinc-300 dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900 dark:disabled:border-zinc-700 dark:disabled:bg-zinc-700 dark:disabled:text-zinc-400"
+              >
+                {saving ? "儲存中…" : "確定"}
+              </button>
+            </div>
             {groups.length === 0 ? (
               <p className="text-sm text-zinc-500 dark:text-zinc-400">目前沒有人跟你分享項目</p>
             ) : (
@@ -189,15 +261,18 @@ export default function SharedItemsSection({
                             <span className="text-sm font-medium text-zinc-900 dark:text-zinc-50">
                               ${item.amount.toLocaleString()}
                             </span>
-                            <label className="flex items-center gap-1.5 text-sm text-zinc-600 dark:text-zinc-300">
-                              <input
-                                type="checkbox"
-                                checked={item.included}
-                                disabled={togglingId === item._id}
-                                onChange={() => toggleIncluded(item)}
-                              />
-                              納入支出
-                            </label>
+                            {item.itemKey === "balance" ? (
+                              <span className="text-xs text-zinc-400 dark:text-zinc-500">結餘不計入統計</span>
+                            ) : (
+                              <label className="flex items-center gap-1.5 text-sm text-zinc-600 dark:text-zinc-300">
+                                <input
+                                  type="checkbox"
+                                  checked={item.included}
+                                  onChange={() => toggleIncludedLocal(item)}
+                                />
+                                納入支出
+                              </label>
+                            )}
                           </div>
                         </li>
                       ))}
@@ -258,6 +333,17 @@ export default function SharedItemsSection({
         confirmLabel="取消分享"
         onConfirm={confirmDeleteOutgoing}
         onCancel={() => setDeleteTarget(null)}
+      />
+
+      <ConfirmDialog
+        open={showExitConfirm}
+        title="儲存變更?"
+        message="「納入支出」的勾選有異動尚未儲存,要儲存嗎?"
+        confirmLabel="儲存"
+        cancelLabel="不儲存"
+        danger={false}
+        onConfirm={confirmExitSave}
+        onCancel={confirmExitDiscard}
       />
     </div>
   );

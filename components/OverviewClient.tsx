@@ -9,6 +9,7 @@ import SharedItemsSection, { type IncomingShareDTO } from "./SharedItemsSection"
 import type { TransactionDTO } from "./TransactionsClient";
 import { usePeriod } from "@/lib/usePeriod";
 import { calculateDailyBudget, daysUntilSpecialDate } from "@/lib/calculateDailyBudget";
+import { sharedItemContribution } from "@/lib/overviewItems";
 import { useToast } from "./ToastProvider";
 import {
   ArrowDownCircleIcon,
@@ -70,6 +71,8 @@ export default function OverviewClient() {
   const [loading, setLoading] = useState(true);
   const [specialDate, setSpecialDate] = useState<number | null>(null);
   const [showInstallmentInChart, setShowInstallmentInChart] = useState(false);
+  // 共享總額是否要實際計入上方收入/支出/結餘統計,讓使用者自己決定,預設納入。
+  const [includeSharedInStats, setIncludeSharedInStats] = useState(true);
   const [reconciledCardIds, setReconciledCardIds] = useState<Set<string>>(new Set());
   const [summary, setSummary] = useState<{
     income: number;
@@ -114,11 +117,20 @@ export default function OverviewClient() {
       const incomingData = await readJson(incomingRes);
 
       const found = utilityData.utilities?.[0];
-      // 舊資料可能是在新增水費欄位前建立的,保底補上預設值避免畫面壞掉。
+      // 舊資料可能是在新增水費欄位/開關欄位前建立的,保底補上預設值避免畫面壞掉。
       const defaultMeter = { start: 0, end: 0, unitPrice: 0, manualAmount: null };
       setUtility(
         found
-          ? { date: found.date, rent: found.rent, elec: found.elec ?? defaultMeter, water: found.water ?? defaultMeter }
+          ? {
+              date: found.date,
+              rent: found.rent,
+              elec: found.elec ?? defaultMeter,
+              water: found.water ?? defaultMeter,
+              rentEnabled: found.rentEnabled ?? true,
+              elecEnabled: found.elecEnabled ?? true,
+              waterEnabled: found.waterEnabled ?? true,
+              enabled: found.enabled ?? true,
+            }
           : null
       );
       setCustomItems(customItemsData.items ?? []);
@@ -165,15 +177,21 @@ export default function OverviewClient() {
   // 每日支出圖表需要逐筆交易的日期/金額,其餘加總數字一律讀 OverviewSummary 快取,不再自己重算。
   const expenseList = transactions.filter((t) => t.type === "expense");
 
-  const incomeTotal = summary?.income ?? 0;
   const cashTotal = summary?.cash ?? 0;
   const installmentTotal = summary?.installment ?? 0;
   const subscriptionTotal = summary?.subscription ?? 0;
   const utilityCost = summary?.utility ?? 0;
   const customItemsTotal = summary?.customItems ?? 0;
-  // 別人分享給我、且我選擇納入支出的項目,只在這裡虛擬加總,不會動到分享者原本的資料。
-  const includedSharedTotal = incomingShares.filter((s) => s.included).reduce((sum, s) => sum + s.amount, 0);
-  const totalExpense = (summary?.expense ?? 0) + includedSharedTotal;
+  // 別人分享給我、且我選擇納入的項目,只在這裡虛擬加總,不會動到分享者原本的資料。
+  // 結餘一律不計入(避免重複灌水);其餘項目以「收入為正、支出為負」的角度加總成一個淨額:
+  // 淨額為正代表這批分享項目整體是收入,加進收入;為負則代表整體是支出,加進支出。
+  const includedSharedNet = incomingShares
+    .filter((s) => s.included)
+    .reduce((sum, s) => sum - sharedItemContribution(s.itemKey, s.amount), 0);
+  const sharedIncomeAdjustment = includeSharedInStats && includedSharedNet > 0 ? includedSharedNet : 0;
+  const sharedExpenseAdjustment = includeSharedInStats && includedSharedNet < 0 ? -includedSharedNet : 0;
+  const incomeTotal = (summary?.income ?? 0) + sharedIncomeAdjustment;
+  const totalExpense = (summary?.expense ?? 0) + sharedExpenseAdjustment;
   const balance = incomeTotal - totalExpense;
 
   const remainingDays = specialDate != null ? daysUntilSpecialDate(specialDate, new Date())+1 : null;
@@ -246,9 +264,8 @@ export default function OverviewClient() {
 
       <UtilityInlineEditor year={year} month={month} utility={utility} loading={loading} onSaved={load} />
 
-      <SharedItemsSection incomingItems={incomingShares} loading={loading} onIncomingChanged={load} />
-
-      {/* <CustomItemsEditor year={year} month={month} items={customItems} loading={loading} onSaved={load} /> */}
+      
+      <CustomItemsEditor year={year} month={month} items={customItems} loading={loading} onSaved={load} />
 
       <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mb-4 grid grid-cols-3 gap-4 text-center">
@@ -390,20 +407,28 @@ export default function OverviewClient() {
             </p>
             <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">${subscriptionTotal.toLocaleString()}</p>
           </div>
-          <div
-            className="rounded-md border border-dashed border-zinc-300 p-3 text-center dark:border-zinc-700"
-            title="虛擬項目:只在這裡合計顯示,不會實際存成一筆支出"
+          <button
+            type="button"
+            onClick={() => setIncludeSharedInStats((prev) => !prev)}
+            title="點擊切換是否計入上方統計:虛擬項目為收入減支出,只在這裡合計顯示,不會實際存成一筆交易。開啟時,正值加進上方收入、負值加進上方支出。"
+            className="relative w-full rounded-md border border-dashed border-zinc-300 p-3 text-center dark:border-zinc-700"
           >
+            <span
+              className={`absolute right-1.5 top-1.5 h-2.5 w-2.5 rounded-full ${
+                includeSharedInStats ? "bg-emerald-500" : "bg-zinc-300 dark:bg-zinc-600"
+              }`}
+            />
             <p className="flex items-center justify-center gap-1 text-sm text-zinc-500 dark:text-zinc-400">
               <UserGroupIcon className="h-4 w-4" />
-              共享總開銷(虛擬)
+              共享總額(虛擬)
             </p>
             <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              ${includedSharedTotal.toLocaleString()}
+              ${includedSharedNet.toLocaleString()}
             </p>
-          </div>
+          </button>
         </div>
       </div>
+      <SharedItemsSection incomingItems={incomingShares} loading={loading} onIncomingChanged={load} />
 
       
     </div>

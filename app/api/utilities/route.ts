@@ -30,25 +30,39 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "未登入" }, { status: 401 });
   }
 
-  const { year, month, date, rent, elec, water } = await request.json();
+  const { year, month, date, rent, elec, water, rentEnabled, elecEnabled, waterEnabled, enabled } =
+    await request.json();
   if (!year || !month || !date) {
     return NextResponse.json({ error: "缺少必要欄位" }, { status: 400 });
   }
 
   await connectToDatabase();
-  const utility = await Utility.create({ user: auth.userId, year, month, date, rent, elec, water });
+  const utility = await Utility.create({
+    user: auth.userId,
+    year,
+    month,
+    date,
+    rent,
+    elec,
+    water,
+    rentEnabled,
+    elecEnabled,
+    waterEnabled,
+    enabled,
+  });
   await recomputeOverviewSummary(auth.userId, formatPeriod(year, month));
   return NextResponse.json({ utility }, { status: 201 });
 }
 
-/** Inline edit 用:依 year+month upsert 該月的房租水電費資料。 */
+/** Inline edit 用:依 year+month upsert 該月的房租水電費資料。前端一律送整份資料,不做局部更新。 */
 export async function PUT(request: Request) {
   const auth = await requireAuth();
   if (!auth) {
     return NextResponse.json({ error: "未登入" }, { status: 401 });
   }
 
-  const { year, month, date, rent, elec, water } = await request.json();
+  const { year, month, date, rent, elec, water, rentEnabled, elecEnabled, waterEnabled, enabled } =
+    await request.json();
   if (!year || !month) {
     return NextResponse.json({ error: "缺少 year/month" }, { status: 400 });
   }
@@ -56,7 +70,7 @@ export async function PUT(request: Request) {
   await connectToDatabase();
   const utility = await Utility.findOneAndUpdate(
     { user: auth.userId, year, month },
-    { user: auth.userId, year, month, date, rent, elec, water },
+    { user: auth.userId, year, month, date, rent, elec, water, rentEnabled, elecEnabled, waterEnabled, enabled },
     { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
   );
   await recomputeOverviewSummary(auth.userId, formatPeriod(year, month));

@@ -7,6 +7,13 @@ const UtilitySchema = new Schema(
     month: { type: Number, required: true, min: 1, max: 12 },
     date: { type: Number, required: true, min: 1, max: 31 },
     rent: { type: Number, required: true, default: 0 },
+    // 租金/電費/水費是否要算進「房租水電總開銷」及上方支出/結餘統計,分開存、跟著月份走。
+    rentEnabled: { type: Boolean, required: true, default: true },
+    elecEnabled: { type: Boolean, required: true, default: true },
+    waterEnabled: { type: Boolean, required: true, default: true },
+    // 總開關:只影響顯示/統計要不要把這個月的房租水電算進去,不會動到上面三個個別開關,
+    // 關掉再打開時,租金/電費/水費原本各自的開關狀態都還在。
+    enabled: { type: Boolean, required: true, default: true },
     elec: {
       type: new Schema(
         {

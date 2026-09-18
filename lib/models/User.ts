@@ -10,6 +10,8 @@ const UserSchema = new Schema(
     /** 註冊啟用 / 忘記密碼共用的 6 碼驗證碼(bcrypt hash 過),驗證成功或過期後清空。 */
     verificationCodeHash: { type: String, default: null },
     verificationCodeExpires: { type: Date, default: null },
+    // 是否已讀最新的系統通知。發布新公告時,所有使用者這個欄位會被統一重置為 false(未讀)。
+    notificationRead: { type: Boolean, required: true, default: true },
   },
   { timestamps: true }
 );
