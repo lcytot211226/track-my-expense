@@ -206,7 +206,7 @@ export default function OverviewClient() {
   // 使用者可透過按鈕自行選擇要不要看。
   const chartExpenseList = showInstallmentInChart
     ? expenseList
-    : expenseList.filter((t) => t.category !== "installment");
+    : expenseList.filter((t) => t.category !== "installment" && t.subscription === null);
   // 日期範圍一律以全部支出(含分期)計算,只是分期關閉時該日金額歸零,
   // 這樣切換按鈕不會讓 x 軸範圍跳動。
   const expenseByDate = new Map<string, number>();
@@ -256,7 +256,7 @@ export default function OverviewClient() {
                 : "border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"
             }`}
           >
-            {showInstallmentInChart ? "已包含分期" : "包含分期"}
+            {showInstallmentInChart ? "已包含分期訂閱" : "包含分期訂閱"}
           </button>
         </div>
         <OverviewChart dailyExpense={dailyExpense} />

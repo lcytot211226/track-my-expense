@@ -13,7 +13,7 @@ export async function GET() {
 
   await connectToDatabase();
   const [notifications, user] = await Promise.all([
-    Notification.find().sort({ createdAt: -1 }).limit(3),
+    Notification.find().sort({ createdAt: -1 }).limit(5),
     User.findById(auth.userId),
   ]);
 
