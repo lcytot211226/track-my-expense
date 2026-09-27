@@ -162,3 +162,38 @@ export function QuestionMarkCircleIcon({ className }: IconProps) {
     </Svg>
   );
 }
+
+export function ListIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M4 6h16M4 12h16M4 18h16" />
+    </Svg>
+  );
+}
+
+export function Columns2Icon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <rect x="3.5" y="4.5" width="7" height="15" rx="1.5" />
+      <rect x="13.5" y="4.5" width="7" height="15" rx="1.5" />
+    </Svg>
+  );
+}
+
+export function Columns3Icon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <rect x="2.5" y="4.5" width="5" height="15" rx="1.25" />
+      <rect x="9.5" y="4.5" width="5" height="15" rx="1.25" />
+      <rect x="16.5" y="4.5" width="5" height="15" rx="1.25" />
+    </Svg>
+  );
+}
+
+export function ArrowDownIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M12 5v14M6 13l6 6 6-6" />
+    </Svg>
+  );
+}

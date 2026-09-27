@@ -6,6 +6,14 @@ import TransactionForm from "./TransactionForm";
 import MonthPicker from "./MonthPicker";
 import ConfirmDialog from "./ConfirmDialog";
 import Modal from "./Modal";
+import {
+  ArrowDownIcon,
+  BanknotesIcon,
+  CalendarDaysIcon,
+  ListIcon,
+  Columns2Icon,
+  Columns3Icon,
+} from "./icons";
 import { usePeriod } from "@/lib/usePeriod";
 
 export type TransactionDTO = {
@@ -20,6 +28,38 @@ export type TransactionDTO = {
   posted: boolean;
   billingPeriod: string;
   subscription: string | null;
+};
+
+type Columns = 1 | 2 | 3;
+
+const COLUMNS_STORAGE_KEY = "transactionColumns";
+
+const COLUMN_OPTIONS: { value: Columns; label: string; Icon: typeof ListIcon }[] = [
+  { value: 1, label: "列表", Icon: ListIcon },
+  { value: 2, label: "2 欄", Icon: Columns2Icon },
+  { value: 3, label: "3 欄", Icon: Columns3Icon },
+];
+
+type SortKey = "date" | "amount";
+type SortDir = "desc" | "asc";
+
+const SORT_STORAGE_KEY = "transactionSort";
+
+const SORT_OPTIONS: { value: SortKey; label: string; Icon: typeof ListIcon }[] = [
+  { value: "date", label: "日期", Icon: CalendarDaysIcon },
+  { value: "amount", label: "金額", Icon: BanknotesIcon },
+];
+
+function sortLabel(key: SortKey, dir: SortDir) {
+  if (key === "date") return dir === "desc" ? "日期:新到舊" : "日期:舊到新";
+  return dir === "desc" ? "金額:高到低" : "金額:低到高";
+}
+
+// 手機一律單欄,sm 以上才套用 2 欄,3 欄要到 lg 才展開,避免卡片被擠得太窄。
+const GRID_CLASS: Record<Columns, string> = {
+  1: "flex flex-col gap-2",
+  2: "grid grid-cols-1 gap-2 sm:grid-cols-2",
+  3: "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3",
 };
 
 const CATEGORY_LABEL: Record<TransactionDTO["category"], string> = {
@@ -44,6 +84,10 @@ export default function TransactionsClient({
   const { period, setPeriod, ready } = usePeriod();
   const [category, setCategory] = useState("");
   const [cardFilter, setCardFilter] = useState("");
+  const [search, setSearch] = useState("");
+  const [columns, setColumns] = useState<Columns>(1);
+  const [sortKey, setSortKey] = useState<SortKey>("date");
+  const [sortDir, setSortDir] = useState<SortDir>("desc");
   const [transactions, setTransactions] = useState<TransactionDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -77,6 +121,35 @@ export default function TransactionsClient({
     load();
   }, [load, ready, refreshToken]);
 
+  useEffect(() => {
+    // 讀取上次選擇的顯示方式(外部系統 localStorage),僅在掛載時同步一次。
+    try {
+      const stored = Number(window.localStorage.getItem(COLUMNS_STORAGE_KEY));
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      if (stored === 1 || stored === 2 || stored === 3) setColumns(stored);
+      const [key, dir] = (window.localStorage.getItem(SORT_STORAGE_KEY) ?? "").split(":");
+      if ((key === "date" || key === "amount") && (dir === "desc" || dir === "asc")) {
+        setSortKey(key);
+        setSortDir(dir);
+      }
+    } catch {}
+  }, []);
+
+  function saveSort(key: SortKey, dir: SortDir) {
+    setSortKey(key);
+    setSortDir(dir);
+    try {
+      window.localStorage.setItem(SORT_STORAGE_KEY, `${key}:${dir}`);
+    } catch {}
+  }
+
+  function handleColumnsChange(next: Columns) {
+    setColumns(next);
+    try {
+      window.localStorage.setItem(COLUMNS_STORAGE_KEY, String(next));
+    } catch {}
+  }
+
   function closeForm() {
     setShowForm(false);
     setEditing(null);
@@ -93,7 +166,27 @@ export default function TransactionsClient({
     load();
   }
 
-  const total = transactions.reduce((sum, t) => sum + t.amount, 0);
+  // 名稱搜尋只在前端過濾已載入的當月資料,不另外打 API。
+  // 可用逗號(半形/全形/頓號)分隔多個關鍵字,名稱符合任一個就顯示。
+  const keywords = search
+    .split(/[,，、]/)
+    .map((k) => k.trim().toLowerCase())
+    .filter(Boolean);
+  const keyword = keywords.length > 0;
+  const filteredTransactions = keyword
+    ? transactions.filter((t) => {
+        const name = t.item.toLowerCase();
+        return keywords.some((k) => name.includes(k));
+      })
+    : transactions;
+  // 排序同樣只在前端做;主排序相同時,日期排序以金額、金額排序以日期(新到舊)當次要排序。
+  const sign = sortDir === "desc" ? -1 : 1;
+  const visibleTransactions = [...filteredTransactions].sort((a, b) => {
+    const byDate = a.date.localeCompare(b.date);
+    const byAmount = a.amount - b.amount;
+    return sortKey === "date" ? sign * byDate || -byAmount : sign * byAmount || -byDate;
+  });
+  const total = visibleTransactions.reduce((sum, t) => sum + t.amount, 0);
   const label = type === "income" ? "收入" : "支出";
 
   return (
@@ -141,6 +234,99 @@ export default function TransactionsClient({
         </div>
       </div>
 
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+        <input
+          type="search"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="搜尋名稱,可用逗號分隔多個關鍵字"
+          className="w-full flex-1 rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
+        />
+        <div className="flex items-center justify-between gap-3 sm:justify-start">
+          <div
+            role="group"
+            aria-label={`排序方式(目前${sortLabel(sortKey, sortDir)})`}
+            className="flex shrink-0 items-center gap-0.5 rounded-md border border-zinc-300 p-0.5 dark:border-zinc-700"
+          >
+            {SORT_OPTIONS.map((opt) => {
+              const active = sortKey === opt.value;
+              // 點目前已選的欄位也會反轉方向,效果同旁邊的箭頭;點另一個欄位則沿用目前方向
+              const title = active ? `${sortLabel(opt.value, sortDir)},點擊反轉` : `依${opt.label}排序`;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() =>
+                    saveSort(opt.value, active ? (sortDir === "desc" ? "asc" : "desc") : sortDir)
+                  }
+                  aria-pressed={active}
+                  aria-label={title}
+                  title={title}
+                  className={`flex items-center justify-center rounded px-2 py-1.5 transition-colors duration-300 active:scale-90 motion-reduce:transition-none ${
+                    active
+                      ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+                      : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+                  }`}
+                >
+                  <opt.Icon className="h-5 w-5" />
+                </button>
+              );
+            })}
+            <span aria-hidden="true" className="mx-0.5 h-5 w-px bg-zinc-300 dark:bg-zinc-700" />
+            {/* 兩個欄位共用的方向切換:向下 = 高到低 / 新到舊,向上 = 低到高 / 舊到新 */}
+            <button
+              type="button"
+              onClick={() => saveSort(sortKey, sortDir === "desc" ? "asc" : "desc")}
+              aria-label={`${sortLabel(sortKey, sortDir)},點擊反轉`}
+              title={`${sortLabel(sortKey, sortDir)},點擊反轉`}
+              className="flex items-center justify-center rounded px-2 py-1.5 text-zinc-700 hover:bg-zinc-100 active:scale-90 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
+              <ArrowDownIcon
+                className={`h-5 w-5 transition-transform duration-300 motion-reduce:transition-none ${
+                  sortDir === "asc" ? "rotate-180" : ""
+                }`}
+              />
+            </button>
+          </div>
+          <div
+            role="group"
+            aria-label="顯示方式"
+            className="relative grid shrink-0 grid-cols-3 rounded-md border border-zinc-300 p-0.5 dark:border-zinc-700"
+          >
+            {/* 滑動的選取底色:寬度固定 1/3,依目前選項往右平移,切換時會滑過去。 */}
+            <span
+              aria-hidden="true"
+              className="absolute inset-y-0.5 left-0.5 w-[calc((100%-0.25rem)/3)] rounded bg-zinc-900 transition-transform duration-300 ease-out motion-reduce:transition-none dark:bg-zinc-100"
+              style={{ transform: `translateX(${(columns - 1) * 100}%)` }}
+            />
+            {COLUMN_OPTIONS.map((opt) => {
+              const active = columns === opt.value;
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => handleColumnsChange(opt.value)}
+                  aria-pressed={active}
+                  aria-label={opt.label}
+                  title={opt.label}
+                  className={`relative z-10 flex items-center justify-center rounded px-3 py-1.5 transition-colors duration-300 active:scale-90 motion-reduce:transition-none ${
+                    active
+                      ? "text-white dark:text-zinc-900"
+                      : "text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+                  }`}
+                >
+                  <opt.Icon
+                    className={`h-5 w-5 transition-transform duration-300 motion-reduce:transition-none ${
+                      active ? "scale-110" : "scale-100"
+                    }`}
+                  />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       <Modal open={showForm || !!editing} onClose={closeForm} title={editing ? `編輯${label}` : `新增${label}`}>
         <TransactionForm
           key={editing ? editing._id : "new"}
@@ -158,20 +344,25 @@ export default function TransactionsClient({
 
       <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
-          {period} {label}總額
+          {period} {label}總額{keyword ? `(符合「${search.trim()}」)` : ""}
         </p>
         <p className="text-2xl font-semibold text-zinc-900 dark:text-zinc-50">${total.toLocaleString()}</p>
       </div>
 
-      <ul className="flex flex-col gap-2">
-        {loading && <p className="text-sm text-zinc-500 dark:text-zinc-400">載入中...</p>}
+      <ul className={GRID_CLASS[columns]}>
+        {loading && <p className="col-span-full text-sm text-zinc-500 dark:text-zinc-400">載入中...</p>}
         {!loading && transactions.length === 0 && (
-          <p className="text-sm text-zinc-500 dark:text-zinc-400">這個月份還沒有{label}紀錄</p>
+          <p className="col-span-full text-sm text-zinc-500 dark:text-zinc-400">這個月份還沒有{label}紀錄</p>
         )}
-        {transactions.map((t) => (
+        {!loading && transactions.length > 0 && visibleTransactions.length === 0 && (
+          <p className="col-span-full text-sm text-zinc-500 dark:text-zinc-400">找不到名稱符合「{search.trim()}」的{label}</p>
+        )}
+        {visibleTransactions.map((t) => (
           <li
             key={t._id}
-            className="flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between dark:border-zinc-800 dark:bg-zinc-900"
+            className={`flex flex-col gap-2 rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 ${
+              columns === 1 ? "sm:flex-row sm:items-center sm:justify-between" : "justify-between"
+            }`}
           >
             <div>
               <p className="font-medium text-zinc-900 dark:text-zinc-50">{t.item}</p>
@@ -183,8 +374,8 @@ export default function TransactionsClient({
                 {t.subscription ? " · 訂閱" : ""}
               </p>
             </div>
-            <div className="flex items-center gap-3">
-              <span className="font-medium text-zinc-900 dark:text-zinc-50">${t.amount.toLocaleString()}</span>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="mr-auto font-medium text-zinc-900 dark:text-zinc-50">${t.amount.toLocaleString()}</span>
               <button
                 type="button"
                 onClick={() => {

@@ -215,12 +215,13 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
   user: ObjectId,
   card: ObjectId,  // 參照 Card._id
   period: string,  // "YYYY-MM"
+  status: "reconciled" | "paid", // 已對帳 / 已繳費,預設 "reconciled"(舊資料沒有此欄位也視為已對帳)
   createdAt: Date,
   updatedAt: Date
 }
 ```
 
-> 純粹用「這筆紀錄存不存在」表示某張卡在某個月是否已經對帳完成,不需要額外的布林欄位;`(user, card, period)` 是 unique index。取消對帳就直接刪掉這筆紀錄。
+> 對帳進度分三段:未對帳 → 已對帳(`reconciled`)→ 已繳費(`paid`)。「未對帳」不存狀態,用「這筆紀錄不存在」表示,回到未對帳就直接刪掉這筆紀錄;`(user, card, period)` 是 unique index。
 
 ### OverviewSummary(每月彙總快取)
 
@@ -343,8 +344,8 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 
 | Method / 路徑 | 說明 |
 |---|---|
-| `GET /api/card-reconciliations?period=` | 回傳該月已對帳的卡片 id 列表 |
-| `PUT /api/card-reconciliations` | `{ card, period, reconciled }`,`reconciled: true` 建立紀錄、`false` 刪除紀錄 |
+| `GET /api/card-reconciliations?period=` | 回傳 `{ statuses: { [cardId]: "reconciled" \| "paid" } }`,沒出現的卡就是未對帳 |
+| `PUT /api/card-reconciliations` | `{ card, period, status }`,`status` 為 `"reconciled"` / `"paid"` 時建立或更新紀錄,`null` 刪除紀錄(回到未對帳) |
 
 ### 月度彙總 `/api/overview-summary`
 
@@ -387,15 +388,17 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 | `/settings` | 個人設定:月結算日(`specialDate`)、修改密碼、刪除帳號 |
 | `/admin`、`/admin/notification` | 僅 `ADMIN_EMAIL` 可進入,發布/編輯/刪除系統公告 |
 
+> `/income`、`/expense` 共用 `components/TransactionsClient.tsx`:另有一列前端本地的名稱搜尋(可用半形/全形逗號或頓號分隔多個關鍵字,符合任一即顯示,總額跟著只算符合的項目),依日期或金額排序(旁邊共用一個方向箭頭切換高到低 / 低到高,再點一次目前已選的欄位也會反轉),以及列表 / 2 欄 / 3 欄的顯示方式切換(排序與顯示方式都記在 localStorage)。
+
 ### `/overview` 頁面配置(由上到下)
 
 1. **月份選擇器**:切換不同月份(對應 `billingPeriod` / Utility 的 year+month)
-2. **Overview 圖表**:用 Recharts 顯示該月份的收入 vs 支出圖表,呈現該月 `billingPeriod` 底下所有交易的收支狀況
+2. **Overview 圖表**:用 Recharts 顯示該月份的收入 vs 支出圖表,呈現該月 `billingPeriod` 底下所有交易的收支狀況。圖表下方有「分析」按鈕(`components/ExpenseAnalysis.tsx`),用 dialog 顯示支出合計 / 有花錢天數 / 平均每天、單日支出總額前三名(依當天各筆支出分色的長條,每天最多列 3 筆、其餘收進可展開的「其他」)與單筆支出前三名(附佔本月比例),名次不足一律補空白佔位;統計範圍跟圖表一樣受「包含分期訂閱」切換影響
 3. **每日可花預算**:若使用者在 `/settings` 設定了月結算日(`specialDate`),顯示距離下次結算日還有幾天,以及「本月結餘 ÷ 剩餘天數」算出的每日可花預算(`lib/calculateDailyBudget.ts`);沒設定則不顯示
 4. **Row 1 — 房租電費**:顯示該月的租金與電費/水費(各自 start/end/單價或手動輸入金額,並可算出用量與費用),租金/電費/水費/總開關可個別開關是否計入統計,**可直接在此區塊內編輯並儲存**(inline edit,不需跳轉頁面)
 5. **Row 2 — 收入 / 支出簡覽**:
    - 上方顯示該月 **Total**(收入總額、支出總額、結餘),以及現金/分期/訂閱/自訂項目/各張信用卡的分項總額
-   - 每張信用卡可標記本月「已對帳」/「未對帳」(`/api/card-reconciliations`)
+   - 每張信用卡的狀態標籤點一下依序切換:未對帳 → 已對帳 → 已繳費 → 未對帳(`/api/card-reconciliations`)
    - 底下分別列出該月 income / expense 的簡易預覽,點擊可導向 `/income` 或 `/expense` 查看完整列表
 6. **分享項目**:顯示別人分享給我的項目(金額即時來自對方的月度彙總),可勾選是否納入自己的支出/結餘統計(虛擬項目,不會真的存成一筆交易);也可以把自己的項目分享給其他 email
 
@@ -454,7 +457,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
   Navbar.tsx, ThemeToggle.tsx, MonthPicker.tsx, OverviewChart.tsx, OverviewClient.tsx
   TransactionForm.tsx, TransactionsClient.tsx, ExpenseClient.tsx
   CardForm.tsx, UtilityInlineEditor.tsx, CustomItemsEditor.tsx
-  SubscriptionForm.tsx, SubscriptionsClient.tsx
+  SubscriptionForm.tsx, SubscriptionsClient.tsx, ExpenseAnalysis.tsx
   ShareForm.tsx, SharedItemsSection.tsx
   NotificationBell.tsx, AdminNotificationClient.tsx, AdminLink.tsx
   SpecialDateForm.tsx, ChangePasswordForm.tsx, DeleteAccountForm.tsx

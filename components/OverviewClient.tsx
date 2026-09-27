@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import MonthPicker from "./MonthPicker";
 import OverviewChart, { type DailyExpense } from "./OverviewChart";
+import ExpenseAnalysis from "./ExpenseAnalysis";
 import UtilityInlineEditor, { type UtilityDTO } from "./UtilityInlineEditor";
 import CustomItemsEditor, { type CustomItemDTO } from "./CustomItemsEditor";
 import SharedItemsSection, { type IncomingShareDTO } from "./SharedItemsSection";
@@ -11,6 +12,7 @@ import { usePeriod } from "@/lib/usePeriod";
 import { calculateDailyBudget, daysUntilSpecialDate } from "@/lib/calculateDailyBudget";
 import { sharedItemContribution } from "@/lib/overviewItems";
 import { useToast } from "./ToastProvider";
+import type { CardReconciliationStatus } from "@/lib/models/CardReconciliation";
 import {
   ArrowDownCircleIcon,
   ArrowPathIcon,
@@ -73,7 +75,8 @@ export default function OverviewClient() {
   const [showInstallmentInChart, setShowInstallmentInChart] = useState(false);
   // 共享總額是否要實際計入上方收入/支出/結餘統計,讓使用者自己決定,預設納入。
   const [includeSharedInStats, setIncludeSharedInStats] = useState(true);
-  const [reconciledCardIds, setReconciledCardIds] = useState<Set<string>>(new Set());
+  // 各卡本月對帳進度,沒出現在裡面的卡 = 未對帳
+  const [cardStatuses, setCardStatuses] = useState<Record<string, CardReconciliationStatus>>({});
   const [summary, setSummary] = useState<{
     income: number;
     expense: number;
@@ -135,7 +138,7 @@ export default function OverviewClient() {
       );
       setCustomItems(customItemsData.items ?? []);
       setTransactions(transactionsData.transactions ?? []);
-      setReconciledCardIds(new Set<string>(reconciliationData.cardIds ?? []));
+      setCardStatuses(reconciliationData.statuses ?? {});
       setSummary(summaryData.summary ?? null);
       setCardBreakdown(
         (summaryData.cards ?? []).map((c: { card: string; name: string; total: number }) => ({
@@ -158,19 +161,22 @@ export default function OverviewClient() {
     load();
   }, [load, ready]);
 
-  async function toggleReconciled(cardId: string) {
-    const next = !reconciledCardIds.has(cardId);
+  /** 點一下依序切換:未對帳 → 已對帳 → 已繳費 → 未對帳 */
+  async function cycleCardStatus(cardId: string) {
+    const current = cardStatuses[cardId] ?? null;
+    const next: CardReconciliationStatus | null =
+      current === null ? "reconciled" : current === "reconciled" ? "paid" : null;
     // 先樂觀更新畫面,失敗機率極低且影響很小,不用等 API 回應才反應。
-    setReconciledCardIds((prev) => {
-      const updated = new Set(prev);
-      if (next) updated.add(cardId);
-      else updated.delete(cardId);
+    setCardStatuses((prev) => {
+      const updated = { ...prev };
+      if (next) updated[cardId] = next;
+      else delete updated[cardId];
       return updated;
     });
     await fetch("/api/card-reconciliations", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ card: cardId, period, reconciled: next }),
+      body: JSON.stringify({ card: cardId, period, status: next }),
     });
   }
 
@@ -260,6 +266,13 @@ export default function OverviewClient() {
           </button>
         </div>
         <OverviewChart dailyExpense={dailyExpense} />
+        <div className="mt-3 flex justify-end">
+          <ExpenseAnalysis
+            period={period}
+            expenses={chartExpenseList}
+            includesInstallment={showInstallmentInChart}
+          />
+        </div>
       </div>
 
       <UtilityInlineEditor year={year} month={month} utility={utility} loading={loading} onSaved={load} />
@@ -322,7 +335,7 @@ export default function OverviewClient() {
             </h3>
             <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {cardBreakdown.map((card) => {
-                const reconciled = reconciledCardIds.has(card.id);
+                const status = cardStatuses[card.id] ?? null;
                 return (
                   <div
                     key={card.id}
@@ -335,19 +348,28 @@ export default function OverviewClient() {
                       </p>
                       <button
                         type="button"
-                        onClick={() => toggleReconciled(card.id)}
+                        onClick={() => cycleCardStatus(card.id)}
                         title={
-                          reconciled
-                            ? "本月帳單已對帳,點擊取消"
-                            : "尚未對帳:點擊標記這張卡本月的帳單已經核對完成"
+                          status === "paid"
+                            ? "本月帳單已繳費,點擊重設為未對帳"
+                            : status === "reconciled"
+                              ? "本月帳單已對帳,點擊標記為已繳費"
+                              : "尚未對帳:點擊標記這張卡本月的帳單已經核對完成"
                         }
                         className={`flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium transition-colors ${
-                          reconciled
-                            ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 dark:hover:bg-emerald-900/60"
-                            : "bg-zinc-100 text-zinc-400 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-500 dark:hover:bg-zinc-700"
+                          status === "paid"
+                            ? "bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-400 dark:hover:bg-sky-900/60"
+                            : status === "reconciled"
+                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 dark:hover:bg-emerald-900/60"
+                              : "bg-zinc-100 text-zinc-400 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-500 dark:hover:bg-zinc-700"
                         }`}
                       >
-                        {reconciled ? (
+                        {status === "paid" ? (
+                          <>
+                            <BanknotesIcon className="h-3.5 w-3.5" />
+                            已繳費
+                          </>
+                        ) : status === "reconciled" ? (
                           <>
                             <CheckCircleIcon className="h-3.5 w-3.5" />
                             已對帳
