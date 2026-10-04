@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
 import { useState } from "react";
 import ThemeToggle from "./ThemeToggle";
 import NotificationBell from "./NotificationBell";
-import AdminLink from "./AdminLink";
+import Logo from "./Logo";
 
 const NAV_LINKS = [
   { href: "/overview", label: "總覽" },
@@ -25,26 +25,35 @@ function SettingsIcon() {
   );
 }
 
+function SettingsLink({ onClick }: { onClick?: () => void }) {
+  return (
+    <Link
+      href="/settings"
+      onClick={onClick}
+      aria-label="設定"
+      title="設定"
+      className="rounded-md border border-zinc-300 p-2 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+    >
+      <SettingsIcon />
+    </Link>
+  );
+}
+
 export default function Navbar() {
   const pathname = usePathname();
-  const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
 
   if (HIDDEN_PATHS.includes(pathname)) {
     return null;
   }
 
-  async function handleLogout() {
-    await fetch("/api/auth/logout", { method: "POST" });
-    router.push("/login");
-    router.refresh();
-  }
-
+  // 管理員入口、登出都移到 /settings,導覽列只留頁面選單 + 通知 / 設定 / 深淺色快速切換。
   return (
     <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-black">
-      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-        <Link href="/" className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-          記帳本
+      {/* 桌面版用左右等寬(1fr)的三欄 grid,中間的選單才會真的置中,不受左右兩邊寬度不同影響 */}
+      <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3 sm:grid sm:grid-cols-[1fr_auto_1fr]">
+        <Link href="/overview" aria-label="Subanote 首頁" className="justify-self-start">
+          <Logo />
         </Link>
 
         <nav className="hidden items-center gap-6 sm:flex">
@@ -63,30 +72,17 @@ export default function Navbar() {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-3 sm:flex">
+        <div className="hidden items-center gap-3 justify-self-end sm:flex">
           <NotificationBell />
-          <Link
-            href="/settings"
-            aria-label="設定"
-            className="rounded-md border border-zinc-300 p-2 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-          >
-            <SettingsIcon />
-          </Link>
+          <SettingsLink />
           <ThemeToggle />
-          <AdminLink />
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-          >
-            登出
-          </button>
         </div>
 
         <button
           type="button"
           onClick={() => setMenuOpen((open) => !open)}
           aria-label="開啟選單"
+          aria-expanded={menuOpen}
           className="rounded-md border border-zinc-300 p-2 text-zinc-700 dark:border-zinc-700 dark:text-zinc-200 sm:hidden"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} className="h-5 w-5">
@@ -111,29 +107,10 @@ export default function Navbar() {
               {link.label}
             </Link>
           ))}
-          <div className="mt-2 flex items-center justify-between px-2">
-            <div className="flex items-center gap-2">
-              <NotificationBell />
-              <Link
-                href="/settings"
-                onClick={() => setMenuOpen(false)}
-                aria-label="設定"
-                className="rounded-md border border-zinc-300 p-2 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-              >
-                <SettingsIcon />
-              </Link>
-              <ThemeToggle />
-            </div>
-            <div className="flex items-center gap-2">
-              <AdminLink onClick={() => setMenuOpen(false)} />
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-              >
-                登出
-              </button>
-            </div>
+          <div className="mt-2 flex items-center gap-2 px-2">
+            <NotificationBell />
+            <SettingsLink onClick={() => setMenuOpen(false)} />
+            <ThemeToggle />
           </div>
         </nav>
       )}

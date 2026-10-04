@@ -1,7 +1,8 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { calculateMeterCost, type MeterInfo } from "@/lib/calculateMeterCost";
+import { calculateMeterCost, calculateMeterCostExact, type MeterInfo } from "@/lib/calculateMeterCost";
+import RoundedAmount from "./RoundedAmount";
 
 export type UtilityDTO = {
   date: number;
@@ -48,7 +49,7 @@ function Switch({
 }) {
   return (
     <label className={`flex items-center gap-2 text-sm ${disabled ? "opacity-50" : "cursor-pointer"}`}>
-      {label && <span className="text-zinc-600 dark:text-zinc-300">{label}</span>}
+      {label && <span className="whitespace-nowrap text-zinc-600 dark:text-zinc-300">{label}</span>}
       <button
         type="button"
         role="switch"
@@ -92,8 +93,8 @@ function MeterEditor({
   return (
     <div className="mt-4 border-t border-zinc-200 pt-4 dark:border-zinc-800">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <div className="flex items-center gap-3">
-          <label className="text-sm text-zinc-500 dark:text-zinc-400">{label.name}計算方式</label>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+          <label className="whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">{label.name}計算方式</label>
           <Switch checked={enabled} onChange={onToggleEnabled} label="計入統計" />
         </div>
         <div className="flex gap-1 rounded-md border border-zinc-300 p-0.5 text-sm dark:border-zinc-700">
@@ -156,7 +157,7 @@ function MeterEditor({
             />
           </div>
           <p className="col-span-2 text-sm text-zinc-500 sm:col-span-3 dark:text-zinc-400">
-            預估{label.name}:${calculateMeterCost(meter).toLocaleString()}
+            預估{label.name}:<RoundedAmount value={calculateMeterCostExact(meter)} />
           </p>
         </div>
       ) : (
@@ -270,35 +271,41 @@ export default function UtilityInlineEditor({
     }
 
     const display = utility ?? emptyUtility;
-    const elecCostRaw = calculateMeterCost(display.elec);
-    const waterCostRaw = calculateMeterCost(display.water);
+    // 統計用四捨五入後的金額(跟 lib/summarizeMonth 一致),實際含小數的金額只在點電費/水費時顯示。
+    const elecCost = calculateMeterCost(display.elec);
+    const waterCost = calculateMeterCost(display.water);
     const subtotal =
       (display.rentEnabled ? display.rent : 0) +
-      (display.elecEnabled ? elecCostRaw : 0) +
-      (display.waterEnabled ? waterCostRaw : 0);
+      (display.elecEnabled ? elecCost : 0) +
+      (display.waterEnabled ? waterCost : 0);
     // 總開關關掉時,顯示上直接擋成 0、整塊變暗,但租金/電費/水費原本的數字跟各自開關狀態都還在,不會被清空。
     const totalCost = display.enabled ? subtotal : 0;
+
+    const masterSwitch = (
+      <div title="總開關:是否把這個月的房租水電計入上方支出/結餘統計;不會動到租金/電費/水費各自的開關。若要個別關閉租金/電費/水費,請點「編輯」">
+        <Switch
+          checked={display.enabled}
+          onChange={toggleMasterEnabled}
+          disabled={togglingAll}
+          label={display.enabled ? "已計入統計" : "未計入統計"}
+        />
+      </div>
+    );
 
     return (
       <div
         className={`rounded-lg border border-zinc-200 bg-white p-4 transition-opacity dark:border-zinc-800 dark:bg-zinc-900 ${loading ? "opacity-60" : ""}`}
       >
-        <div className="mb-3 flex items-center justify-between">
-          <div className="flex items-baseline gap-2">
-            <h2 className="font-medium text-zinc-900 dark:text-zinc-50">房租水電費</h2>
-            <span className="text-sm text-zinc-500 dark:text-zinc-400">
-              總共 ${totalCost.toLocaleString()} <span className="font-semibold text-zinc-900 dark:text-zinc-50"></span>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-2">
+            <h2 className="whitespace-nowrap font-medium text-zinc-900 dark:text-zinc-50">房租水電費</h2>
+            <span className="whitespace-nowrap text-sm text-zinc-500 dark:text-zinc-400">
+              總共 ${totalCost.toLocaleString()}
             </span>
           </div>
-          <div className="flex items-center gap-3">
-            <div title="總開關:是否把這個月的房租水電計入上方支出/結餘統計;不會動到租金/電費/水費各自的開關。若要個別關閉租金/電費/水費,請點「編輯」">
-              <Switch
-                checked={display.enabled}
-                onChange={toggleMasterEnabled}
-                disabled={togglingAll}
-                label={display.enabled ? "已計入統計" : "未計入統計"}
-              />
-            </div>
+          <div className="flex shrink-0 items-center gap-3">
+            {/* 桌面版總開關跟編輯放同一行;手機放不下,總開關移到下一行(見下方 sm:hidden) */}
+            <div className="hidden sm:block">{masterSwitch}</div>
             <button
               type="button"
               onClick={startEdit}
@@ -308,6 +315,7 @@ export default function UtilityInlineEditor({
             </button>
           </div>
         </div>
+        <div className="mb-3 flex justify-end sm:hidden">{masterSwitch}</div>
         <div
           className={`grid grid-cols-2 gap-3 sm:grid-cols-4 transition-opacity ${!display.enabled ? "opacity-40" : ""}`}
         >
@@ -325,13 +333,13 @@ export default function UtilityInlineEditor({
             className={`rounded-md border border-zinc-200 p-3 text-center transition-opacity dark:border-zinc-800 ${!display.elecEnabled ? "opacity-40" : ""}`}
           >
             <p className="text-sm text-zinc-500 dark:text-zinc-400">電費</p>
-            <p className="font-medium text-zinc-900 dark:text-zinc-50">${elecCostRaw.toLocaleString()}</p>
+            <RoundedAmount value={calculateMeterCostExact(display.elec)} className="font-medium text-zinc-900 dark:text-zinc-50" />
           </div>
           <div
             className={`rounded-md border border-zinc-200 p-3 text-center transition-opacity dark:border-zinc-800 ${!display.waterEnabled ? "opacity-40" : ""}`}
           >
             <p className="text-sm text-zinc-500 dark:text-zinc-400">水費</p>
-            <p className="font-medium text-zinc-900 dark:text-zinc-50">${waterCostRaw.toLocaleString()}</p>
+            <RoundedAmount value={calculateMeterCostExact(display.water)} className="font-medium text-zinc-900 dark:text-zinc-50" />
           </div>
         </div>
       </div>
@@ -344,7 +352,8 @@ export default function UtilityInlineEditor({
       className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900"
     >
       <h2 className="mb-3 font-medium text-zinc-900 dark:text-zinc-50">房租水電費</h2>
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+      {/* items-end:手機上「租金 + 計入統計」標題可能換成兩行,讓兩個輸入框仍然底部對齊 */}
+      <div className="grid grid-cols-2 items-end gap-4 sm:grid-cols-4">
         <div>
           <label className="mb-1 block text-sm text-zinc-500 dark:text-zinc-400">帳單日</label>
           <input
@@ -357,7 +366,7 @@ export default function UtilityInlineEditor({
           />
         </div>
         <div>
-          <div className="mb-1 flex items-center justify-between">
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-1">
             <label className="block text-sm text-zinc-500 dark:text-zinc-400">租金</label>
             <Switch
               checked={form.rentEnabled}

@@ -28,12 +28,21 @@ export const viewport: Viewport = {
   themeColor: "#799ef6",
 };
 
+// 主題偏好的規則見 lib/theme.ts:localStorage 沒有 "theme" = 跟隨系統。
+// 跟隨系統時還要監聽系統主題變化,使用者在系統切換深淺色時頁面會即時跟著變。
 const THEME_INIT_SCRIPT = `
 (function () {
   try {
-    var stored = localStorage.getItem("theme");
-    var isDark = stored ? stored === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
-    document.documentElement.classList.toggle("dark", isDark);
+    var media = window.matchMedia("(prefers-color-scheme: dark)");
+    var apply = function () {
+      var stored = localStorage.getItem("theme");
+      var isDark = stored === "dark" || stored === "light" ? stored === "dark" : media.matches;
+      document.documentElement.classList.toggle("dark", isDark);
+    };
+    apply();
+    media.addEventListener("change", function () {
+      if (!localStorage.getItem("theme")) apply();
+    });
   } catch (e) {}
 })();
 `;

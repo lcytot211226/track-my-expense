@@ -43,7 +43,7 @@ export default function DeleteAccountForm() {
     <>
       <form
         onSubmit={handleSubmit}
-        className="flex max-w-sm flex-col gap-4 rounded-lg border border-red-200 bg-white p-4 dark:border-red-900/50 dark:bg-zinc-900"
+        className="flex flex-col gap-4"
       >
         <p className="text-sm text-zinc-500 dark:text-zinc-400">
           刪除帳號後,你的信用卡、收支紀錄、房租電費、自訂項目等所有資料都會被永久刪除,無法復原。

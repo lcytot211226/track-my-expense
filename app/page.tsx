@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import type { CSSProperties } from "react";
 import OverviewChart from "@/components/OverviewChart";
 import PublicNotifications from "@/components/PublicNotifications";
+import Logo from "@/components/Logo";
 import {
   ArrowPathIcon,
   BanknotesIcon,
@@ -109,9 +111,12 @@ const FEATURES = [
 ];
 
 export default async function Home() {
-  const user = await getCurrentUser();
-  const ctaHref = user ? "/overview" : "/login";
-  const ctaLabel = user ? "前往總覽" : "立即開始";
+  // 介紹頁只給未登入的人看;已登入(token 有效)就直接進總覽,也順便省掉下面查公告的資料庫查詢。
+  if (await getCurrentUser()) {
+    redirect("/overview");
+  }
+  const ctaHref = "/login";
+  const ctaLabel = "立即開始";
 
   await connectToDatabase();
   const notificationDocs = await Notification.find().sort({ createdAt: -1 }).limit(5).lean();
@@ -126,32 +131,21 @@ export default async function Home() {
     <div className="flex min-h-screen flex-col">
       <header className="border-b border-zinc-200 dark:border-zinc-800">
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-3">
-          <span className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">記帳本</span>
+          <Logo />
           <div className="flex items-center gap-2">
             <PublicNotifications notifications={notifications} />
-            {user ? (
-              <Link
-                href="/overview"
-                className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-              >
-                前往總覽
-              </Link>
-            ) : (
-              <>
-                <Link
-                  href="/login"
-                  className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-                >
-                  登入
-                </Link>
-                <Link
-                  href="/register"
-                  className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
-                >
-                  註冊
-                </Link>
-              </>
-            )}
+            <Link
+              href="/login"
+              className="rounded-md border border-zinc-300 px-3 py-1.5 text-sm font-medium text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
+              登入
+            </Link>
+            <Link
+              href="/register"
+              className="rounded-md bg-zinc-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-zinc-700 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-300"
+            >
+              註冊
+            </Link>
           </div>
         </div>
       </header>

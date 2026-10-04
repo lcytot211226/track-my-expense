@@ -8,7 +8,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 
 <!-- END:nextjs-agent-rules -->
 
-# 個人記帳 Web App
+# Subanote(個人記帳 Web App)
 
 一個使用 Next.js + MongoDB 打造的自訂記帳網站。核心是信用卡分期/訂閱扣款管理與房租水電紀錄,並延伸出訂閱惰性生成交易、跨帳號項目分享、系統公告通知、信用卡對帳追蹤、每日可花預算等功能;具備單一入口登入驗證、深色/淺色模式與 RWD 響應式設計(手機也能正常使用)。
 
@@ -188,7 +188,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 }
 ```
 
-> 每個 `(user, year, month)` 只會有一筆(unique index),`/overview` 的房租水電 inline 編輯是用 `PUT /api/utilities`(不帶 id,依 year+month upsert)整份覆寫。金額計算見 `lib/calculateMeterCost.ts`:`manualAmount` 有值就直接用它,否則用 `max(0, end - start) × unitPrice`。
+> 每個 `(user, year, month)` 只會有一筆(unique index),`/overview` 的房租水電 inline 編輯是用 `PUT /api/utilities`(不帶 id,依 year+month upsert)整份覆寫。金額計算見 `lib/calculateMeterCost.ts`:`manualAmount` 有值就直接用它,否則用 `max(0, end - start) × unitPrice`;計入統計(月度彙總、房租水電總額)的 `calculateMeterCost()` 一律四捨五入到整數,含小數的實際金額(`calculateMeterCostExact()`)只用於畫面上點擊查看。
 
 ### CustomItem(自訂月費項目)
 
@@ -223,7 +223,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 
 > 對帳進度分三段:未對帳 → 已對帳(`reconciled`)→ 已繳費(`paid`)。「未對帳」不存狀態,用「這筆紀錄不存在」表示,回到未對帳就直接刪掉這筆紀錄;`(user, card, period)` 是 unique index。
 
-### OverviewSummary(每月彙總快取)
+### OverviewSummary(每月彙總快取,供分享使用)
 
 ```ts
 {
@@ -245,7 +245,9 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 }
 ```
 
-> `(user, period)` 是 unique index。這是一份**衍生/快取資料**,不是使用者直接輸入的來源資料——交易、房租水電、自訂項目任何一筆異動,對應 API route 都會呼叫 `lib/recomputeOverviewSummary.ts` 的 `recomputeOverviewSummary(userId, period)` 重新從原始資料算一次並整份覆寫,讓 `GET /api/overview-summary` 可以直接讀快取,不用每次都重新拉整個月資料加總;若某個月從未被計算過(沒有快取),讀取時會即時算一次並補上。`items` 裡的 `key` 只存代碼(例如 `"cash"`、`"card:<cardId>"`),顯示用的 label 一律由 API 層透過 `lib/overviewItems.ts` 的 `labelForItemKey()` 依 key 即時解析,避免卡片改名後舊快照裡的名稱跟著過期。
+> `(user, period)` 是 unique index。這是一份**衍生/快取資料**,不是使用者直接輸入的來源資料——交易、房租水電、自訂項目任何一筆異動,對應 API route 都會呼叫 `lib/recomputeOverviewSummary.ts` 的 `recomputeOverviewSummary(userId, period)` 重新從原始資料算一次並整份覆寫,讓別人讀我的分享項目(`GET /api/shares/incoming`)時只要查一筆快取,不用拉我整個月的原始資料;若某個月從未被計算過(沒有快取),讀取時會即時算一次並補上。
+>
+> **我自己的 `/overview` 不讀這份快取**,而是用前端已經抓回來的當月交易 / 房租水電 / 自訂項目現場加總(交易列表 API 回傳前已補生成到期的訂閱,所以一定包含最新的訂閱扣款,不會跟快取有時間差)。計算邏輯集中在純函式 `lib/summarizeMonth.ts` 的 `summarizeMonth()`(不碰資料庫),前端現場算與後端 `recomputeOverviewSummary`(經 `lib/computeMonthSummary.ts` 查原始資料)共用同一份,數字一定一致。`items` 裡的 `key` 只存代碼(例如 `"cash"`、`"card:<cardId>"`),顯示用的 label 一律由 API 層透過 `lib/overviewItems.ts` 的 `labelForItemKey()` 依 key 即時解析,避免卡片改名後舊快照裡的名稱跟著過期。
 
 ### Share(跨帳號項目分享)
 
@@ -327,7 +329,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 
 | Method / 路徑 | 說明 |
 |---|---|
-| `GET /api/utilities` | 支援 `?year=&month=` 篩選 |
+| `GET /api/utilities` | 支援 `?year=&month=` 篩選(`/overview` 不打這支,改由 `GET /api/overview` 一次取得;保留給需要單獨讀取的情境) |
 | `POST /api/utilities` | 新增一筆 |
 | `PUT /api/utilities` | 不帶 id,依 `{ year, month }` upsert,供 `/overview` inline edit 使用,前端一律送整份資料覆寫 |
 | `GET/PUT/DELETE /api/utilities/[id]` | 讀取/更新/刪除單筆,更新若 `year`/`month` 改變,新舊月份的彙總都會重算 |
@@ -336,7 +338,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 
 | Method / 路徑 | 說明 |
 |---|---|
-| `GET /api/custom-items` | 支援 `?year=&month=` 篩選 |
+| `GET /api/custom-items` | 支援 `?year=&month=` 篩選(`/overview` 不打這支,改由 `GET /api/overview` 一次取得;保留給需要單獨讀取的情境) |
 | `POST /api/custom-items` | `{ year, month, name, amount }` 新增 |
 | `PUT/DELETE /api/custom-items/[id]` | 更新/刪除 |
 
@@ -344,14 +346,16 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 
 | Method / 路徑 | 說明 |
 |---|---|
-| `GET /api/card-reconciliations?period=` | 回傳 `{ statuses: { [cardId]: "reconciled" \| "paid" } }`,沒出現的卡就是未對帳 |
+| `GET /api/card-reconciliations?period=` | 回傳 `{ statuses: { [cardId]: "reconciled" \| "paid" } }`,沒出現的卡就是未對帳(`/overview` 不打這支,改由 `GET /api/overview` 一次取得;保留給需要單獨讀取的情境) |
 | `PUT /api/card-reconciliations` | `{ card, period, status }`,`status` 為 `"reconciled"` / `"paid"` 時建立或更新紀錄,`null` 刪除紀錄(回到未對帳) |
 
-### 月度彙總 `/api/overview-summary`
+### 總覽整合 `/api/overview`
 
 | Method / 路徑 | 說明 |
 |---|---|
-| `GET /api/overview-summary?period=` | 讀取(不存在則即時計算並寫入)`OverviewSummary` 快取,回傳收支各分類總額、每張卡當月刷卡總額(含當月完全沒刷卡的卡片,顯示 $0)、以及可分享項目清單(附上解析後的中文 label) |
+| `GET /api/overview?period=YYYY-MM` | `/overview` 專用,把**只有總覽頁會讀**的資料一次回傳:`{ utility, customItems, cardStatuses, incomingShares }`。各欄位內容與對應的獨立 API 相同:`utility` = `GET /api/utilities?year=&month=` 的那一筆(沒有則 `null`)、`customItems` = `GET /api/custom-items?year=&month=` 的 `items`、`cardStatuses` = `GET /api/card-reconciliations?period=` 的 `statuses`、`incomingShares` = `GET /api/shares/incoming?period=` 的 `items` |
+
+> **哪些併、哪些不併**:`/overview` 每次載入只打 3 支 API——`/api/overview`、`/api/transactions?billingPeriod=`、`/api/cards`。交易和卡片在 `/income`、`/expense`、`/cards` 等其他頁面也會獨立呼叫,所以**不併進來**,維持各自的 API。上面四支被整合的 GET 仍然保留(行為不變),只是 `/overview` 不再使用;它們和 `/api/overview` 共用同一份查詢邏輯(`lib/getCardReconciliationStatuses.ts`、`lib/getIncomingShares.ts`),回傳的資料一定一致。新增、修改、刪除(POST / PUT / DELETE)一律還是打各自的 API。
 
 ### 分享 `/api/shares`
 
@@ -361,7 +365,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 | `POST /api/shares` | `{ targetEmail, itemKeys: string[] }`,把一個或多個項目分享給某個 email(不能分享給自己) |
 | `PUT /api/shares/[id]` | `{ included }`,僅收件人(`targetEmail` 對得上自己 email)可呼叫,決定要不要把這筆分享納入自己的支出計算 |
 | `DELETE /api/shares/[id]` | 僅分享者(`owner`)可呼叫,取消分享 |
-| `GET /api/shares/incoming?period=` | 別人分享給我的項目,金額即時從各分享者當月的 `OverviewSummary` 讀出 |
+| `GET /api/shares/incoming?period=` | 別人分享給我的項目,金額即時從各分享者當月的 `OverviewSummary` 讀出(沒快取才現場算並補上)(`/overview` 不打這支,改由 `GET /api/overview` 一次取得;保留給需要單獨讀取的情境) |
 
 ### 系統通知 `/api/notifications`
 
@@ -380,15 +384,17 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 | `/register` | 註冊頁,不限制帳號數量 |
 | `/verify-email` | 輸入註冊 / 忘記密碼驗證碼,啟用帳號 |
 | `/forgot-password` | 忘記密碼:寄送驗證碼 + 設定新密碼 |
-| `/` | 未登入可見的介紹頁(用 `lib/demoData.ts` 的假資料展示功能,不接資料庫) |
+| `/` | 未登入可見的介紹頁(用 `lib/demoData.ts` 的假資料展示功能,不接資料庫);已登入會直接 `redirect("/overview")` |
 | `/income` | 收入總覽(列表 + 篩選) |
 | `/expense` | 支出總覽(列表 + 篩選),含信用卡分期、訂閱管理入口與信用卡對帳標記 |
 | `/overview` | 主要整合頁面,詳見下方說明 |
 | `/cards` | 信用卡管理(新增/編輯/刪除) |
-| `/settings` | 個人設定:月結算日(`specialDate`)、修改密碼、刪除帳號 |
+| `/settings` | 個人設定(`components/SettingsClient.tsx`):分組的列表式選單,點每一列在 dialog 裡打開對應內容——月結算日(`specialDate`)、外觀(淺色 / 深色 / 跟隨系統,`ThemeSettings.tsx`)、加到手機主畫面教學(`AddToHomeScreenGuide.tsx`,純說明,不做 PWA)、修改密碼、刪除帳號;另有「管理員後台」連結(僅 `isAdmin`)與「登出」 |
 | `/admin`、`/admin/notification` | 僅 `ADMIN_EMAIL` 可進入,發布/編輯/刪除系統公告 |
 
-> `/income`、`/expense` 共用 `components/TransactionsClient.tsx`:另有一列前端本地的名稱搜尋(可用半形/全形逗號或頓號分隔多個關鍵字,符合任一即顯示,總額跟著只算符合的項目),依日期或金額排序(旁邊共用一個方向箭頭切換高到低 / 低到高,再點一次目前已選的欄位也會反轉),以及列表 / 2 欄 / 3 欄的顯示方式切換(排序與顯示方式都記在 localStorage)。
+> 導覽列(`components/Navbar.tsx`):左邊是 `components/Logo.tsx` 的 Subanote 品牌字(SVG,Pacifico 手寫體 + 品牌色漸層),中間是頁面選單(桌面版用 `grid-cols-[1fr_auto_1fr]` 讓選單真正置中),右邊是通知鈴鐺 / 設定 / 深淺色快速切換;手機版收進漢堡選單。管理員入口與登出不在導覽列,在 `/settings`。登入、註冊、驗證、忘記密碼頁與未登入首頁的標題也都用同一個 Logo。
+
+> `/income`、`/expense` 共用 `components/TransactionsClient.tsx`:另有一列前端本地的名稱搜尋(可用半形/全形逗號或頓號分隔多個關鍵字,符合任一即顯示,總額跟著只算符合的項目),依日期或金額排序(旁邊共用一個方向箭頭切換高到低 / 低到高,再點一次目前已選的欄位也會反轉;日期相同時再依 `createdAt` 同方向排序,金額相同時依日期、`createdAt` 新到舊),以及列表 / 2 欄 / 3 欄的顯示方式切換(排序與顯示方式都記在 localStorage;手機版一律單欄,不顯示顯示方式切換)。
 
 ### `/overview` 頁面配置(由上到下)
 
@@ -401,12 +407,15 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
    - 每張信用卡的狀態標籤點一下依序切換:未對帳 → 已對帳 → 已繳費 → 未對帳(`/api/card-reconciliations`)
    - 底下分別列出該月 income / expense 的簡易預覽,點擊可導向 `/income` 或 `/expense` 查看完整列表
 6. **分享項目**:顯示別人分享給我的項目(金額即時來自對方的月度彙總),可勾選是否納入自己的支出/結餘統計(虛擬項目,不會真的存成一筆交易);也可以把自己的項目分享給其他 email
+7. **快速記帳浮動按鈕**(`components/QuickAddButton.tsx`,僅手機版 `sm:hidden`):右下角「+」按鈕,點開 dialog 切換收入/支出,直接沿用 `TransactionForm` 新增交易,新增後重新載入總覽
+
+> 房租水電區塊的電費/水費用 `components/RoundedAmount.tsx` 顯示:預設顯示四捨五入後的整數(也就是實際計入統計的金額),若實際金額有小數,點一下可切換顯示實際金額。
 
 ## 深色 / 淺色模式(Dark / Light Mode)
 
-- 提供切換按鈕(建議放在 Navbar)
-- 記住使用者偏好(localStorage,或跟隨系統 `prefers-color-scheme`)
-- Tailwind 設定 `darkMode: 'class'`
+- 三種偏好:淺色 / 深色 / 跟隨系統,在 `/settings` 的「外觀」設定;Navbar 的太陽/月亮按鈕是快速切換,直接切成跟目前相反的淺色或深色(會離開跟隨系統)
+- 偏好存在 localStorage 的 `theme`(`"light"` / `"dark"`;跟隨系統 = 不存這個 key),讀寫邏輯集中在 `lib/theme.ts`
+- 實際套用是切換 `<html>` 的 `.dark` class(Tailwind v4:`globals.css` 的 `@custom-variant dark (&:where(.dark, .dark *))`)。`app/layout.tsx` 的 `THEME_INIT_SCRIPT` 在頁面渲染前先套用,避免閃爍;跟隨系統時也會監聽 `prefers-color-scheme` 變化即時切換
 
 ## RWD(響應式設計)
 
@@ -435,7 +444,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
     /utilities/route.ts, /utilities/[id]/route.ts
     /custom-items/route.ts, /custom-items/[id]/route.ts
     /card-reconciliations/route.ts
-    /overview-summary/route.ts
+    /overview/route.ts              // /overview 專用整合 API
     /shares/route.ts, /shares/[id]/route.ts, /shares/incoming/route.ts
     /notifications/route.ts, /notifications/mark-read/route.ts
     /admin/notifications/route.ts, /admin/notifications/[id]/route.ts
@@ -446,9 +455,13 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
   calculateMeterCost.ts           // 電費/水費金額計算
   calculateDailyBudget.ts         // 月結算日倒數 + 每日可花預算
   generateSubscriptionTransactions.ts // 訂閱惰性生成交易
-  recomputeOverviewSummary.ts     // 重算並覆寫 OverviewSummary 快取
+  summarizeMonth.ts               // 月度彙總純函式(前後端共用)
+  computeMonthSummary.ts          // 後端:查原始資料 + summarizeMonth
+  recomputeOverviewSummary.ts     // 重算並覆寫 OverviewSummary 快取(供分享使用)
+  getCardReconciliationStatuses.ts, getIncomingShares.ts // 獨立 API 與 /api/overview 共用的查詢
   overviewItems.ts                // 可分享項目 key/label 對照、分享金額貢獻計算
   otp.ts, email.ts                // 驗證碼產生、Resend 寄信
+  theme.ts                        // 主題偏好(淺色/深色/跟隨系統)讀寫
   addMonths.ts, period.ts, usePeriod.ts, demoData.ts
   models/
     User.ts, Card.ts, Transaction.ts, Subscription.ts, Utility.ts,
@@ -458,9 +471,9 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
   TransactionForm.tsx, TransactionsClient.tsx, ExpenseClient.tsx
   CardForm.tsx, UtilityInlineEditor.tsx, CustomItemsEditor.tsx
   SubscriptionForm.tsx, SubscriptionsClient.tsx, ExpenseAnalysis.tsx
-  ShareForm.tsx, SharedItemsSection.tsx
-  NotificationBell.tsx, AdminNotificationClient.tsx, AdminLink.tsx
-  SpecialDateForm.tsx, ChangePasswordForm.tsx, DeleteAccountForm.tsx
+  ShareForm.tsx, SharedItemsSection.tsx, QuickAddButton.tsx, RoundedAmount.tsx, AddToHomeScreenGuide.tsx
+  NotificationBell.tsx, AdminNotificationClient.tsx, Logo.tsx, ThemeSettings.tsx
+  SettingsClient.tsx, SpecialDateForm.tsx, ChangePasswordForm.tsx, DeleteAccountForm.tsx
   ForgotPasswordForm.tsx, VerifyEmailForm.tsx
   Modal.tsx, ConfirmDialog.tsx, ToastProvider.tsx, RouteChangeToast.tsx, icons.tsx
 proxy.ts                          // 取代 middleware.ts:未登入導回 /login + sliding session

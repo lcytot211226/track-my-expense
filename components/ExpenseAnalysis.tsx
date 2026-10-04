@@ -16,22 +16,23 @@ const CATEGORY_LABEL: Record<TransactionDTO["category"], string> = {
   installment: "分期",
 };
 
-const CATEGORY_CHIP: Record<TransactionDTO["category"], string> = {
-  cash: "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300",
-  credit_card: "bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-300",
-  installment: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
-};
+// 整個分析 dialog 走單色(zinc 灰階),只用深淺區分,不用彩色。
+const CATEGORY_CHIP = "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300";
 
-// 第 1/2/3 名的金/銀/銅徽章
+// 第 1 名實心深色,第 2/3 名淺灰
 const RANK_BADGE = [
-  "bg-amber-400 text-amber-950",
-  "bg-slate-300 text-slate-800 dark:bg-slate-400 dark:text-slate-950",
-  "bg-orange-300 text-orange-950 dark:bg-orange-400",
+  "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900",
+  "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-100",
+  "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-100",
 ];
 
-// 單日組成長條:前三筆各自一個顏色(跟下方清單的圓點對應),其餘併成灰色的「其他」
-const SEGMENT_COLORS = ["bg-rose-500", "bg-amber-400", "bg-sky-500"];
-const OTHER_SEGMENT_COLOR = "bg-zinc-300 dark:bg-zinc-600";
+// 單日組成長條:前三筆由深到淺各一個灰階(跟下方清單的圓點對應),其餘併成最淺的「其他」
+const SEGMENT_COLORS = [
+  "bg-zinc-700 dark:bg-zinc-200",
+  "bg-zinc-500 dark:bg-zinc-400",
+  "bg-zinc-400 dark:bg-zinc-500",
+];
+const OTHER_SEGMENT_COLOR = "bg-zinc-200 dark:bg-zinc-700";
 
 type TopDay = { date: string; total: number; items: TransactionDTO[] };
 
@@ -71,7 +72,7 @@ function RankBadge({ rank, empty }: { rank: number; empty?: boolean }) {
 
 function CategoryChip({ t }: { t: TransactionDTO }) {
   return (
-    <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium ${CATEGORY_CHIP[t.category]}`}>
+    <span className={`shrink-0 rounded px-1.5 py-0.5 text-[11px] font-medium ${CATEGORY_CHIP}`}>
       {CATEGORY_LABEL[t.category]}
     </span>
   );
@@ -166,7 +167,7 @@ function DayRankCard({
           </div>
         </div>
         <div className="text-right">
-          <p className="font-semibold leading-tight text-rose-600 dark:text-rose-400">{money(day.total)}</p>
+          <p className="font-semibold leading-tight text-zinc-900 dark:text-zinc-50">{money(day.total)}</p>
           <p className="text-xs text-zinc-500 dark:text-zinc-400">佔本月 {percent(day.total, monthTotal)}</p>
         </div>
       </div>
@@ -245,7 +246,7 @@ function ItemRankRow({ rank, t, monthTotal }: { rank: number; t: TransactionDTO 
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-3">
             <p className="truncate text-sm font-semibold leading-5 text-zinc-900 dark:text-zinc-50">{t.item}</p>
-            <p className="shrink-0 font-semibold leading-5 text-rose-600 dark:text-rose-400">{money(t.amount)}</p>
+            <p className="shrink-0 font-semibold leading-5 text-zinc-900 dark:text-zinc-50">{money(t.amount)}</p>
           </div>
           <div className="flex h-5 items-center justify-between gap-3 text-xs text-zinc-500 dark:text-zinc-400">
             <span className="flex min-w-0 items-center gap-1.5">
@@ -263,7 +264,7 @@ function ItemRankRow({ rank, t, monthTotal }: { rank: number; t: TransactionDTO 
       </div>
       <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800">
         <div
-          className="h-full rounded-full bg-rose-500"
+          className="h-full rounded-full bg-zinc-500 dark:bg-zinc-400"
           style={{ width: `${monthTotal > 0 ? (t.amount / monthTotal) * 100 : 0}%` }}
         />
       </div>
@@ -337,7 +338,7 @@ export default function ExpenseAnalysis({
 
           <section>
             <SectionTitle
-              icon={<CalendarDaysIcon className="h-4 w-4 text-sky-500" />}
+              icon={<CalendarDaysIcon className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />}
               title="花最多的三天"
               hint="長條依當天各筆支出分色"
             />
@@ -356,7 +357,7 @@ export default function ExpenseAnalysis({
 
           <section>
             <SectionTitle
-              icon={<TagIcon className="h-4 w-4 text-rose-500" />}
+              icon={<TagIcon className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />}
               title="最貴的三筆"
               hint="長條為佔本月支出比例"
             />

@@ -1,10 +1,8 @@
 import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
-import CardReconciliation, {
-  CARD_RECONCILIATION_STATUSES,
-  type CardReconciliationStatus,
-} from "@/lib/models/CardReconciliation";
+import CardReconciliation, { CARD_RECONCILIATION_STATUSES } from "@/lib/models/CardReconciliation";
 import { requireAuth } from "@/lib/auth";
+import { getCardReconciliationStatuses } from "@/lib/getCardReconciliationStatuses";
 
 export async function GET(request: Request) {
   const auth = await requireAuth();
@@ -19,12 +17,7 @@ export async function GET(request: Request) {
   }
 
   await connectToDatabase();
-  const records = await CardReconciliation.find({ user: auth.userId, period }).lean();
-  // { [cardId]: "reconciled" | "paid" },沒出現在裡面的卡就是未對帳
-  const statuses: Record<string, CardReconciliationStatus> = {};
-  for (const r of records) {
-    statuses[r.card.toString()] = r.status ?? "reconciled";
-  }
+  const statuses = await getCardReconciliationStatuses(auth.userId, period);
   return NextResponse.json({ statuses });
 }
 

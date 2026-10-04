@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import MonthPicker from "./MonthPicker";
 import OverviewChart, { type DailyExpense } from "./OverviewChart";
 import ExpenseAnalysis from "./ExpenseAnalysis";
+import QuickAddButton from "./QuickAddButton";
 import UtilityInlineEditor, { type UtilityDTO } from "./UtilityInlineEditor";
 import CustomItemsEditor, { type CustomItemDTO } from "./CustomItemsEditor";
 import SharedItemsSection, { type IncomingShareDTO } from "./SharedItemsSection";
@@ -11,6 +12,8 @@ import type { TransactionDTO } from "./TransactionsClient";
 import { usePeriod } from "@/lib/usePeriod";
 import { calculateDailyBudget, daysUntilSpecialDate } from "@/lib/calculateDailyBudget";
 import { sharedItemContribution } from "@/lib/overviewItems";
+import { summarizeMonth } from "@/lib/summarizeMonth";
+import type { CardDTO } from "./CardForm";
 import { useToast } from "./ToastProvider";
 import type { CardReconciliationStatus } from "@/lib/models/CardReconciliation";
 import {
@@ -77,17 +80,7 @@ export default function OverviewClient() {
   const [includeSharedInStats, setIncludeSharedInStats] = useState(true);
   // 各卡本月對帳進度,沒出現在裡面的卡 = 未對帳
   const [cardStatuses, setCardStatuses] = useState<Record<string, CardReconciliationStatus>>({});
-  const [summary, setSummary] = useState<{
-    income: number;
-    expense: number;
-    cash: number;
-    installment: number;
-    subscription: number;
-    utility: number;
-    customItems: number;
-    balance: number;
-  } | null>(null);
-  const [cardBreakdown, setCardBreakdown] = useState<{ id: string; name: string; total: number }[]>([]);
+  const [cards, setCards] = useState<CardDTO[]>([]);
   const [incomingShares, setIncomingShares] = useState<IncomingShareDTO[]>([]);
 
   const { year, month } = parsePeriod(period);
@@ -102,24 +95,19 @@ export default function OverviewClient() {
     setLoading(true);
     const toastId = showLoading("資料載入中…");
     try {
-      const [utilityRes, customItemsRes, transactionsRes, reconciliationRes, summaryRes, incomingRes] =
-        await Promise.all([
-          fetch(`/api/utilities?year=${year}&month=${month}`),
-          fetch(`/api/custom-items?year=${year}&month=${month}`),
-          fetch(`/api/transactions?billingPeriod=${period}`),
-          fetch(`/api/card-reconciliations?period=${period}`),
-          // OverviewSummary 是後端維護的彙總快取,總覽的加總數字直接讀這裡,不用每次都把整月原始資料抓回來重算。
-          fetch(`/api/overview-summary?period=${period}`),
-          fetch(`/api/shares/incoming?period=${period}`),
-        ]);
-      const utilityData = await readJson(utilityRes);
-      const customItemsData = await readJson(customItemsRes);
+      // 總覽專用的資料(房租水電 / 自訂項目 / 對帳狀態 / 別人分享給我的項目)由 /api/overview 一次拿;
+      // 交易與卡片其他頁面也會獨立使用,維持各自的 API。
+      const [overviewRes, transactionsRes, cardsRes] = await Promise.all([
+        fetch(`/api/overview?period=${period}`),
+        fetch(`/api/transactions?billingPeriod=${period}`),
+        // 卡片清單用來列出這個月完全沒刷卡的卡($0)
+        fetch("/api/cards"),
+      ]);
+      const overviewData = await readJson(overviewRes);
       const transactionsData = await readJson(transactionsRes);
-      const reconciliationData = await readJson(reconciliationRes);
-      const summaryData = await readJson(summaryRes);
-      const incomingData = await readJson(incomingRes);
+      const cardsData = await readJson(cardsRes);
 
-      const found = utilityData.utilities?.[0];
+      const found = overviewData.utility;
       // 舊資料可能是在新增水費欄位/開關欄位前建立的,保底補上預設值避免畫面壞掉。
       const defaultMeter = { start: 0, end: 0, unitPrice: 0, manualAmount: null };
       setUtility(
@@ -136,23 +124,16 @@ export default function OverviewClient() {
             }
           : null
       );
-      setCustomItems(customItemsData.items ?? []);
+      setCustomItems(overviewData.customItems ?? []);
       setTransactions(transactionsData.transactions ?? []);
-      setCardStatuses(reconciliationData.statuses ?? {});
-      setSummary(summaryData.summary ?? null);
-      setCardBreakdown(
-        (summaryData.cards ?? []).map((c: { card: string; name: string; total: number }) => ({
-          id: c.card,
-          name: c.name,
-          total: c.total,
-        }))
-      );
-      setIncomingShares(incomingData.items ?? []);
+      setCardStatuses(overviewData.cardStatuses ?? {});
+      setCards(cardsData.cards ?? []);
+      setIncomingShares(overviewData.incomingShares ?? []);
     } finally {
       dismiss(toastId);
       setLoading(false);
     }
-  }, [year, month, period, showLoading, dismiss]);
+  }, [period, showLoading, dismiss]);
 
   useEffect(() => {
     // 等 usePeriod 確定好正確的月份(ready)才 fetch,避免先用猜的月份抓一次資料造成畫面閃爍。
@@ -180,14 +161,29 @@ export default function OverviewClient() {
     });
   }
 
-  // 每日支出圖表需要逐筆交易的日期/金額,其餘加總數字一律讀 OverviewSummary 快取,不再自己重算。
   const expenseList = transactions.filter((t) => t.type === "expense");
 
-  const cashTotal = summary?.cash ?? 0;
-  const installmentTotal = summary?.installment ?? 0;
-  const subscriptionTotal = summary?.subscription ?? 0;
-  const utilityCost = summary?.utility ?? 0;
-  const customItemsTotal = summary?.customItems ?? 0;
+  // 所有加總數字都用剛抓回來的原始資料現場算,不讀任何快取。
+  // 交易列表 API 回傳前已經補生成到期的訂閱,所以這裡算出來的一定包含最新的訂閱扣款。
+  const summary = summarizeMonth({
+    transactions: transactions.map((t) => ({
+      type: t.type,
+      category: t.category,
+      amount: t.amount,
+      subscription: t.subscription,
+      cardId: t.card?._id ?? null,
+    })),
+    utility,
+    customItems,
+  });
+  const cashTotal = summary.cash;
+  const installmentTotal = summary.installment;
+  const subscriptionTotal = summary.subscription;
+  const utilityCost = summary.utility;
+  const customItemsTotal = summary.customItems;
+  // 每張卡都列出來,這個月完全沒刷卡的卡顯示 $0
+  const cardTotalById = new Map(summary.cards.map((c) => [c.card, c.total]));
+  const cardBreakdown = cards.map((c) => ({ id: c._id, name: c.name, total: cardTotalById.get(c._id) ?? 0 }));
   // 別人分享給我、且我選擇納入的項目,只在這裡虛擬加總,不會動到分享者原本的資料。
   // 結餘一律不計入(避免重複灌水);其餘項目以「收入為正、支出為負」的角度加總成一個淨額:
   // 淨額為正代表這批分享項目整體是收入,加進收入;為負則代表整體是支出,加進支出。
@@ -196,8 +192,8 @@ export default function OverviewClient() {
     .reduce((sum, s) => sum - sharedItemContribution(s.itemKey, s.amount), 0);
   const sharedIncomeAdjustment = includeSharedInStats && includedSharedNet > 0 ? includedSharedNet : 0;
   const sharedExpenseAdjustment = includeSharedInStats && includedSharedNet < 0 ? -includedSharedNet : 0;
-  const incomeTotal = (summary?.income ?? 0) + sharedIncomeAdjustment;
-  const totalExpense = (summary?.expense ?? 0) + sharedExpenseAdjustment;
+  const incomeTotal = summary.income + sharedIncomeAdjustment;
+  const totalExpense = summary.expense + sharedExpenseAdjustment;
   const balance = incomeTotal - totalExpense;
 
   const remainingDays = specialDate != null ? daysUntilSpecialDate(specialDate, new Date())+1 : null;
@@ -244,7 +240,8 @@ export default function OverviewClient() {
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    // 手機版底部多留空間,避免右下角的快速記帳按鈕蓋住最後一個區塊
+    <div className="flex flex-col gap-6 pb-20 sm:pb-0">
       <MonthPicker value={period} onChange={setPeriod} />
 
       <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
@@ -451,6 +448,8 @@ export default function OverviewClient() {
         </div>
       </div>
       <SharedItemsSection incomingItems={incomingShares} loading={loading} onIncomingChanged={load} />
+
+      <QuickAddButton onAdded={load} />
 
       
     </div>

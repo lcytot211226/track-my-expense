@@ -6,23 +6,28 @@ export default function Modal({
   open,
   onClose,
   title,
+  size = "lg",
   children,
 }: {
   open: boolean;
   onClose: () => void;
   title?: string;
+  /** sm:單欄小表單(例如設定頁);lg:預設,交易表單等多欄內容 */
+  size?: "sm" | "lg";
   children: ReactNode;
 }) {
   if (!open) return null;
 
   return (
+    // 垂直置中用子元素的 my-auto 而不是外層 items-center:內容比畫面高時,items-center 會把頂端推到
+    // 捲動範圍之外(切頭、捲不上去),auto margin 則會自動退回靠上對齊,整個 dialog 都捲得到。
     <div
-      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/50 p-4 sm:items-center"
+      className="fixed inset-0 z-50 flex justify-center overflow-y-auto bg-black/50 p-4"
       onClick={onClose}
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="my-8 w-full max-w-2xl rounded-lg bg-white shadow-xl dark:bg-zinc-900"
+        className={`my-4 h-fit w-full ${size === "sm" ? "max-w-md" : "max-w-2xl"} rounded-lg bg-white shadow-xl sm:my-auto dark:bg-zinc-900`}
       >
         {title && (
           <div className="flex items-center justify-between border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">

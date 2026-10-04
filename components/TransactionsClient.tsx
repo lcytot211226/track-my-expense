@@ -28,6 +28,7 @@ export type TransactionDTO = {
   posted: boolean;
   billingPeriod: string;
   subscription: string | null;
+  createdAt: string;
 };
 
 type Columns = 1 | 2 | 3;
@@ -179,12 +180,16 @@ export default function TransactionsClient({
         return keywords.some((k) => name.includes(k));
       })
     : transactions;
-  // 排序同樣只在前端做;主排序相同時,日期排序以金額、金額排序以日期(新到舊)當次要排序。
+  // 排序同樣只在前端做。日期排序:同一天再依建立時間(跟主排序同方向),讓同日的紀錄維持輸入順序;
+  // 金額排序:金額相同時依日期、再依建立時間(新到舊)。
   const sign = sortDir === "desc" ? -1 : 1;
   const visibleTransactions = [...filteredTransactions].sort((a, b) => {
     const byDate = a.date.localeCompare(b.date);
+    const byCreated = (a.createdAt ?? "").localeCompare(b.createdAt ?? "");
     const byAmount = a.amount - b.amount;
-    return sortKey === "date" ? sign * byDate || -byAmount : sign * byAmount || -byDate;
+    return sortKey === "date"
+      ? sign * (byDate || byCreated)
+      : sign * byAmount || -byDate || -byCreated;
   });
   const total = visibleTransactions.reduce((sum, t) => sum + t.amount, 0);
   const label = type === "income" ? "收入" : "支出";
@@ -288,10 +293,11 @@ export default function TransactionsClient({
               />
             </button>
           </div>
+          {/* 手機一律單欄(見 GRID_CLASS),切換鈕沒作用,直接隱藏 */}
           <div
             role="group"
             aria-label="顯示方式"
-            className="relative grid shrink-0 grid-cols-3 rounded-md border border-zinc-300 p-0.5 dark:border-zinc-700"
+            className="relative hidden shrink-0 grid-cols-3 sm:grid rounded-md border border-zinc-300 p-0.5 dark:border-zinc-700"
           >
             {/* 滑動的選取底色:寬度固定 1/3,依目前選項往右平移,切換時會滑過去。 */}
             <span

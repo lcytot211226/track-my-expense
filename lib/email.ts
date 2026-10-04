@@ -25,8 +25,8 @@ export async function sendVerificationEmail(to: string, code: string) {
   await resend.emails.send({
     from: FROM_ADDRESS,
     to,
-    subject: "記帳本 - 註冊驗證碼",
-    html: codeEmailHtml("啟用你的記帳本帳號", code),
+    subject: "Subanote - 註冊驗證碼",
+    html: codeEmailHtml("啟用你的 Subanote 帳號", code),
   });
 }
 
@@ -34,7 +34,7 @@ export async function sendPasswordResetEmail(to: string, code: string) {
   await resend.emails.send({
     from: FROM_ADDRESS,
     to,
-    subject: "記帳本 - 重設密碼驗證碼",
-    html: codeEmailHtml("重設記帳本密碼", code),
+    subject: "Subanote - 重設密碼驗證碼",
+    html: codeEmailHtml("重設 Subanote 密碼", code),
   });
 }

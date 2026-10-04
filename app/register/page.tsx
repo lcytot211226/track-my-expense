@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
+import Logo from "@/components/Logo";
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -57,9 +58,9 @@ export default function RegisterPage() {
       <div className="w-full max-w-sm">
         <Link
           href="/"
-          className="mb-6 block text-center text-lg font-semibold text-zinc-900 dark:text-zinc-50"
+          className="mb-6 flex justify-center"
         >
-          記帳本
+          <Logo className="h-10" />
         </Link>
 
         <form

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
+import Logo from "./Logo";
 
 const RESEND_COOLDOWN_SEC = 60;
 
@@ -112,9 +113,9 @@ export default function ForgotPasswordForm() {
       <div className="w-full max-w-sm">
         <Link
           href="/"
-          className="mb-6 block text-center text-lg font-semibold text-zinc-900 dark:text-zinc-50"
+          className="mb-6 flex justify-center"
         >
-          記帳本
+          <Logo className="h-10" />
         </Link>
 
         {step === "email" ? (
