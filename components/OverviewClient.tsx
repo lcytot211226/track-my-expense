@@ -185,7 +185,7 @@ export default function OverviewClient() {
   const cardTotalById = new Map(summary.cards.map((c) => [c.card, c.total]));
   const cardBreakdown = cards.map((c) => ({ id: c._id, name: c.name, total: cardTotalById.get(c._id) ?? 0 }));
   // 別人分享給我、且我選擇納入的項目,只在這裡虛擬加總,不會動到分享者原本的資料。
-  // 結餘一律不計入(避免重複灌水);其餘項目以「收入為正、支出為負」的角度加總成一個淨額:
+  // 各項目以「收入為正、支出為負」的角度加總成一個淨額(收入、結餘為正,開銷類為負):
   // 淨額為正代表這批分享項目整體是收入,加進收入;為負則代表整體是支出,加進支出。
   const includedSharedNet = incomingShares
     .filter((s) => s.included)

@@ -60,3 +60,40 @@ export async function POST(request: Request) {
 
   return NextResponse.json({ shares }, { status: 201 });
 }
+
+/**
+ * 把我分享給某個 email 的項目整份設成 itemKeys:清單裡原本沒有的就新增,原本有但不在清單裡的就刪除,
+ * 兩邊都有的維持不動(保留收件人原本的 included 選擇)。itemKeys 為空陣列等於取消分享給這個人的所有項目。
+ */
+export async function PUT(request: Request) {
+  const auth = await requireAuth();
+  if (!auth) {
+    return NextResponse.json({ error: "未登入" }, { status: 401 });
+  }
+
+  const { targetEmail, itemKeys } = await request.json();
+  const email = typeof targetEmail === "string" ? targetEmail.trim().toLowerCase() : "";
+  if (!email || !Array.isArray(itemKeys)) {
+    return NextResponse.json({ error: "缺少必要欄位" }, { status: 400 });
+  }
+  if (email === auth.email.toLowerCase()) {
+    return NextResponse.json({ error: "不能分享給自己" }, { status: 400 });
+  }
+  const keys = Array.from(new Set(itemKeys.filter((key): key is string => typeof key === "string" && !!key)));
+
+  await connectToDatabase();
+  await Share.deleteMany({ owner: auth.userId, targetEmail: email, itemKey: { $nin: keys } });
+  if (keys.length > 0) {
+    await Share.bulkWrite(
+      keys.map((key) => ({
+        updateOne: {
+          filter: { owner: auth.userId, targetEmail: email, itemKey: key },
+          update: { $setOnInsert: { included: false } },
+          upsert: true,
+        },
+      }))
+    );
+  }
+
+  return NextResponse.json({ ok: true });
+}

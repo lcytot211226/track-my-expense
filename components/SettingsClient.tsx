@@ -18,6 +18,7 @@ import {
   ShieldCheckIcon,
   SunIcon,
   TrashIcon,
+  UserCircleIcon,
 } from "./icons";
 
 type DialogKey = "specialDate" | "password" | "theme" | "homeScreen" | "deleteAccount";
@@ -86,6 +87,7 @@ export default function SettingsClient() {
   const router = useRouter();
   const [openKey, setOpenKey] = useState<DialogKey | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [email, setEmail] = useState<string | null>(null);
   const [loggingOut, setLoggingOut] = useState(false);
   const themePreference = useThemePreference();
   const themeLabel = THEME_OPTIONS.find((o) => o.value === themePreference)?.label;
@@ -93,7 +95,10 @@ export default function SettingsClient() {
   useEffect(() => {
     fetch("/api/auth/me")
       .then((res) => res.json())
-      .then((data) => setIsAdmin(!!data.isAdmin))
+      .then((data) => {
+        setIsAdmin(!!data.isAdmin);
+        setEmail(data.email ?? null);
+      })
       .catch(() => {});
   }, []);
 
@@ -118,6 +123,12 @@ export default function SettingsClient() {
 
   return (
     <div className="flex flex-col gap-6">
+      <Group>
+        <li className="flex items-center gap-3 px-4 py-3.5">
+          <RowContent Icon={UserCircleIcon} title="目前登入帳號" description={email ?? "載入中..."} chevron={false} />
+        </li>
+      </Group>
+
       <Group>
         {dialogRow("specialDate", CalendarDaysIcon, "總覽頁依此算出每日可花預算")}
         {dialogRow("theme", SunIcon, `目前:${themeLabel}`)}

@@ -263,7 +263,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 }
 ```
 
-> `(owner, targetEmail, itemKey)` 是 unique index。分享者把自己 `OverviewSummary` 裡某個固定項目(收入/支出/結餘/現金/分期/訂閱/房租水電/自訂項目)或某張信用卡的當月總額分享給任一 email;原始資料仍歸屬分享者,收件人登入後在自己的 `/overview` 看到這筆分享,可自行決定 `included` 要不要把金額納入自己的支出計算(不會真的寫成一筆交易,純粹是顯示/統計層的虛擬項目)。金額不落地存放,`GET /api/shares/incoming` 每次都即時從分享者當月的 `OverviewSummary` 讀取,永遠反映最新狀態。分享項目納入收件人支出時的實際貢獻值見 `lib/overviewItems.ts` 的 `sharedItemContribution()`:`balance` 一律不計入(避免重複計算),`income` 要反轉正負號(對「支出」而言是負向貢獻),其餘維持原本金額。
+> `(owner, targetEmail, itemKey)` 是 unique index。分享者把自己 `OverviewSummary` 裡某個固定項目(收入/支出/結餘/現金/分期/訂閱/房租水電/自訂項目)或某張信用卡的當月總額分享給任一 email;原始資料仍歸屬分享者,收件人登入後在自己的 `/overview` 看到這筆分享,可自行決定 `included` 要不要把金額納入自己的支出計算(不會真的寫成一筆交易,純粹是顯示/統計層的虛擬項目)。金額不落地存放,`GET /api/shares/incoming` 每次都即時從分享者當月的 `OverviewSummary` 讀取,永遠反映最新狀態。分享項目納入收件人支出時的實際貢獻值見 `lib/overviewItems.ts` 的 `sharedItemContribution()`:`income` 與 `balance` 要反轉正負號(對「支出」而言是負向貢獻),其餘維持原本金額。`balance` 可以安全計入:`OverviewSummary` 只由分享者自己的原始資料算出、不含任何分享項目,所以互相分享結餘也不會遞迴或重複計算。
 
 ### Notification(系統公告)
 
@@ -363,6 +363,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 |---|---|
 | `GET /api/shares` | 我(分享者)設定過的分享清單 |
 | `POST /api/shares` | `{ targetEmail, itemKeys: string[] }`,把一個或多個項目分享給某個 email(不能分享給自己) |
+| `PUT /api/shares` | `{ targetEmail, itemKeys: string[] }`,把我分享給某個 email 的項目整份設成 `itemKeys`:新的項目新增、不在清單裡的刪除、兩邊都有的不動(保留收件人原本的 `included`);空陣列等於取消分享給這個人的所有項目。供 `/overview` 共享明細裡「編輯項目」使用 |
 | `PUT /api/shares/[id]` | `{ included }`,僅收件人(`targetEmail` 對得上自己 email)可呼叫,決定要不要把這筆分享納入自己的支出計算 |
 | `DELETE /api/shares/[id]` | 僅分享者(`owner`)可呼叫,取消分享 |
 | `GET /api/shares/incoming?period=` | 別人分享給我的項目,金額即時從各分享者當月的 `OverviewSummary` 讀出(沒快取才現場算並補上)(`/overview` 不打這支,改由 `GET /api/overview` 一次取得;保留給需要單獨讀取的情境) |
@@ -389,7 +390,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 | `/expense` | 支出總覽(列表 + 篩選),含信用卡分期、訂閱管理入口與信用卡對帳標記 |
 | `/overview` | 主要整合頁面,詳見下方說明 |
 | `/cards` | 信用卡管理(新增/編輯/刪除) |
-| `/settings` | 個人設定(`components/SettingsClient.tsx`):分組的列表式選單,點每一列在 dialog 裡打開對應內容——月結算日(`specialDate`)、外觀(淺色 / 深色 / 跟隨系統,`ThemeSettings.tsx`)、加到手機主畫面教學(`AddToHomeScreenGuide.tsx`,純說明,不做 PWA)、修改密碼、刪除帳號;另有「管理員後台」連結(僅 `isAdmin`)與「登出」 |
+| `/settings` | 個人設定(`components/SettingsClient.tsx`):最上方顯示目前登入的帳號 email(來自 `GET /api/auth/me`),下面是分組的列表式選單,點每一列在 dialog 裡打開對應內容——月結算日(`specialDate`)、外觀(淺色 / 深色 / 跟隨系統,`ThemeSettings.tsx`)、加到手機主畫面教學(`AddToHomeScreenGuide.tsx`,純說明,不做 PWA)、修改密碼、刪除帳號;另有「管理員後台」連結(僅 `isAdmin`)與「登出」 |
 | `/admin`、`/admin/notification` | 僅 `ADMIN_EMAIL` 可進入,發布/編輯/刪除系統公告 |
 
 > 導覽列(`components/Navbar.tsx`):左邊是 `components/Logo.tsx` 的 Subanote 品牌字(SVG,Pacifico 手寫體 + 品牌色漸層),中間是頁面選單(桌面版用 `grid-cols-[1fr_auto_1fr]` 讓選單真正置中),右邊是通知鈴鐺 / 設定 / 深淺色快速切換;手機版收進漢堡選單。管理員入口與登出不在導覽列,在 `/settings`。登入、註冊、驗證、忘記密碼頁與未登入首頁的標題也都用同一個 Logo。
@@ -406,7 +407,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
    - 上方顯示該月 **Total**(收入總額、支出總額、結餘),以及現金/分期/訂閱/自訂項目/各張信用卡的分項總額
    - 每張信用卡的狀態標籤點一下依序切換:未對帳 → 已對帳 → 已繳費 → 未對帳(`/api/card-reconciliations`)
    - 底下分別列出該月 income / expense 的簡易預覽,點擊可導向 `/income` 或 `/expense` 查看完整列表
-6. **分享項目**:顯示別人分享給我的項目(金額即時來自對方的月度彙總),可勾選是否納入自己的支出/結餘統計(虛擬項目,不會真的存成一筆交易);也可以把自己的項目分享給其他 email
+6. **分享項目**:顯示別人分享給我的項目(金額即時來自對方的月度彙總),可勾選是否納入自己的支出/結餘統計(虛擬項目,不會真的存成一筆交易);也可以把自己的項目分享給其他 email;「我分享出去的項目」依 email 分組,每組可用「編輯項目」直接勾選增減分享給這個人的項目(`PUT /api/shares`),或逐項取消分享
 7. **快速記帳浮動按鈕**(`components/QuickAddButton.tsx`,僅手機版 `sm:hidden`):右下角「+」按鈕,點開 dialog 切換收入/支出,直接沿用 `TransactionForm` 新增交易,新增後重新載入總覽
 
 > 房租水電區塊的電費/水費用 `components/RoundedAmount.tsx` 顯示:預設顯示四捨五入後的整數(也就是實際計入統計的金額),若實際金額有小數,點一下可切換顯示實際金額。

@@ -46,12 +46,12 @@ export function formatPeriod(year: number, month: number): string {
 
 /**
  * 別人分享給我的項目納入「我」的支出總額時的實際貢獻值:
- * - 結餘(balance)本身就是收入減支出的結果,絕對不能再被計入,一律回傳 0。
- * - 收入(income)對「支出」而言是負向貢獻(等於抵銷支出),要反轉正負號。
+ * - 收入(income)與結餘(balance)對「支出」而言是負向貢獻(等於抵銷支出),要反轉正負號。
+ *   結餘可以放心計入:OverviewSummary 快取只由分享者自己的原始資料算出,不含任何分享項目,
+ *   所以就算雙方互相分享結餘也不會遞迴或重複灌水。
  * - 其餘(現金/分期/信用卡等開銷類項目)維持原本金額。
  */
 export function sharedItemContribution(itemKey: string, amount: number): number {
-  if (itemKey === "balance") return 0;
-  if (itemKey === "income") return -amount;
+  if (itemKey === "income" || itemKey === "balance") return -amount;
   return amount;
 }
