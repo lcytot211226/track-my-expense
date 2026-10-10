@@ -9,7 +9,6 @@ import QuickAddButton from "./QuickAddButton";
 import UtilityInlineEditor, { type UtilityDTO } from "./UtilityInlineEditor";
 import CustomItemsEditor, { type CustomItemDTO } from "./CustomItemsEditor";
 import PiggyBankTile from "./PiggyBankTile";
-import { piggyBankSaved } from "@/lib/piggyBank";
 import SharedItemsSection, { type IncomingShareDTO } from "./SharedItemsSection";
 import type { TransactionDTO } from "./TransactionsClient";
 import { usePeriod } from "@/lib/usePeriod";
@@ -180,6 +179,7 @@ export default function OverviewClient() {
     })),
     utility,
     customItems,
+    piggyBankAmount,
   });
   const cashTotal = summary.cash;
   const installmentTotal = summary.installment;
@@ -196,10 +196,10 @@ export default function OverviewClient() {
   const sharedIncomeAdjustment = includeSharedInStats && includedSharedNet > 0 ? includedSharedNet : 0;
   const sharedExpenseAdjustment = includeSharedInStats && includedSharedNet < 0 ? -includedSharedNet : 0;
   const incomeTotal = summary.income + sharedIncomeAdjustment;
-  // 存錢罐存下的金額計入支出:先用「存錢前」的結餘算出能存多少,再加進支出,避免結餘↔存錢互相依賴。
-  const balanceBeforeSaving = incomeTotal - (summary.expense + sharedExpenseAdjustment);
-  const piggySaved = piggyBankAmount != null ? piggyBankSaved(balanceBeforeSaving, piggyBankAmount) : 0;
-  const totalExpense = summary.expense + sharedExpenseAdjustment + piggySaved;
+  // 存錢罐存下的金額已經由 summarizeMonth 算進 summary.expense(只看自己的結餘,不受共享項目影響)。
+  // 存錢罐格子的預覽要用「存錢前」的自己結餘。
+  const balanceBeforeSaving = summary.balance + summary.piggyBank;
+  const totalExpense = summary.expense + sharedExpenseAdjustment;
   const balance = incomeTotal - totalExpense;
 
   const remainingDays = specialDate != null ? daysUntilSpecialDate(specialDate, new Date())+1 : null;

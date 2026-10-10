@@ -1,4 +1,5 @@
 import { calculateMeterCost, type MeterInfo } from "@/lib/calculateMeterCost";
+import { piggyBankSaved } from "@/lib/piggyBank";
 
 /**
  * 某使用者某個 billingPeriod 的收支彙總計算。純函式、不碰資料庫,前後端共用同一份邏輯:
@@ -28,12 +29,14 @@ export type SummaryUtility = {
 
 export type MonthSummary = {
   income: number;
-  expense: number; // 交易支出 + 房租水電 + 自訂項目
+  expense: number; // 交易支出 + 房租水電 + 自訂項目 + 存錢罐存下的金額
   cash: number;
   installment: number;
   subscription: number;
   utility: number;
   customItems: number;
+  /** 存錢罐這個月實際存下的金額(沒設定為 0),已計入 expense */
+  piggyBank: number;
   balance: number; // income - expense
   /** 每張有刷卡紀錄的卡當月總額(沒刷卡的卡不會出現,需要 $0 的話由呼叫端自己補) */
   cards: { card: string; total: number }[];
@@ -61,10 +64,13 @@ export function summarizeMonth({
   transactions,
   utility,
   customItems,
+  piggyBankAmount = null,
 }: {
   transactions: SummaryTransaction[];
   utility: SummaryUtility | null;
   customItems: { amount: number }[];
+  /** 這個月存錢罐想存的金額,沒設定是 null */
+  piggyBankAmount?: number | null;
 }): MonthSummary {
   const incomeList = transactions.filter((t) => t.type === "income");
   const expenseList = transactions.filter((t) => t.type === "expense");
@@ -91,7 +97,11 @@ export function summarizeMonth({
 
   const customItemsTotal = sum(customItems.map((item) => item.amount));
 
-  const expense = expenseTotal + utilityCost + customItemsTotal;
+  // 存錢罐只看自己的結餘(不含任何分享項目):先用「存錢前」的結餘算出能存多少,再加進支出,
+  // 避免結餘↔存錢互相依賴;也因為不依賴別人的資料,才能安全地寫進 OverviewSummary 快取。
+  const expenseBeforeSaving = expenseTotal + utilityCost + customItemsTotal;
+  const piggyBank = piggyBankAmount != null ? piggyBankSaved(safeNumber(income - expenseBeforeSaving), piggyBankAmount) : 0;
+  const expense = expenseBeforeSaving + piggyBank;
 
   return {
     income: safeNumber(income),
@@ -101,6 +111,7 @@ export function summarizeMonth({
     subscription: safeNumber(subscription),
     utility: safeNumber(utilityCost),
     customItems: safeNumber(customItemsTotal),
+    piggyBank: safeNumber(piggyBank),
     balance: safeNumber(income - expense),
     cards: Array.from(cardTotals, ([card, total]) => ({ card, total: safeNumber(total) })),
   };

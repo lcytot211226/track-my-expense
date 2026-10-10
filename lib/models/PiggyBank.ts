@@ -1,8 +1,8 @@
 import mongoose, { Schema, type InferSchemaType } from "mongoose";
 
 /**
- * 存錢罐:使用者替某個月設定想存下的金額。實際存下多少不落地,
- * 一律用 lib/piggyBank.ts 的 piggyBankSaved() 依當月結餘即時算出 = max(min(結餘, 金額), 0)。
+ * 存錢罐:使用者替某個月設定想存下的金額。實際存下多少由 lib/summarizeMonth 依自己的當月結餘算出
+ * = max(min(存錢前結餘, 金額), 0),計入當月支出,並寫進 OverviewSummary 快取的 piggyBank 欄位。
  */
 const PiggyBankSchema = new Schema(
   {

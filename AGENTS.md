@@ -232,12 +232,13 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
   user: ObjectId,
   period: string,      // "YYYY-MM"
   income: number,
-  expense: number,     // 現金 + 分期 + 信用卡單筆交易 + 房租水電 + 自訂項目
+  expense: number,     // 現金 + 分期 + 信用卡單筆交易 + 房租水電 + 自訂項目 + 存錢罐存下的金額
   cash: number,
   installment: number,
   subscription: number,
   utility: number,
   customItems: number,
+  piggyBank: number,   // 存錢罐實際存下的金額(已計入 expense);舊快取沒有此欄位,讀取時視為過期重算
   balance: number,     // income - expense
   cards: [{ card: ObjectId, total: number }],  // 每張信用卡當月刷卡總額
   items: [{ key: string, amount: number }],    // 可分享項目快照,key 見下方 Share 說明
@@ -246,9 +247,9 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 }
 ```
 
-> `(user, period)` 是 unique index。這是一份**衍生/快取資料**,不是使用者直接輸入的來源資料——交易、房租水電、自訂項目任何一筆異動,對應 API route 都會呼叫 `lib/recomputeOverviewSummary.ts` 的 `recomputeOverviewSummary(userId, period)` 重新從原始資料算一次並整份覆寫,讓別人讀我的分享項目(`GET /api/shares/incoming`)時只要查一筆快取,不用拉我整個月的原始資料;若某個月從未被計算過(沒有快取),讀取時會即時算一次並補上。
+> `(user, period)` 是 unique index。這是一份**衍生/快取資料**,不是使用者直接輸入的來源資料——交易、房租水電、自訂項目、存錢罐任何一筆異動,對應 API route 都會呼叫 `lib/recomputeOverviewSummary.ts` 的 `recomputeOverviewSummary(userId, period)` 重新從原始資料算一次並整份覆寫,讓別人讀我的分享項目(`GET /api/shares/incoming`)時只要查一筆快取,不用拉我整個月的原始資料;若某個月從未被計算過(沒有快取),或是加入存錢罐之前寫入、缺 `piggyBank` 欄位的舊快取,讀取時(`lib/getOverviewSummary.ts`)會即時算一次並補上。
 >
-> **我自己的 `/overview` 不讀這份快取**,而是用前端已經抓回來的當月交易 / 房租水電 / 自訂項目現場加總(交易列表 API 回傳前已補生成到期的訂閱,所以一定包含最新的訂閱扣款,不會跟快取有時間差)。計算邏輯集中在純函式 `lib/summarizeMonth.ts` 的 `summarizeMonth()`(不碰資料庫),前端現場算與後端 `recomputeOverviewSummary`(經 `lib/computeMonthSummary.ts` 查原始資料)共用同一份,數字一定一致。`items` 裡的 `key` 只存代碼(例如 `"cash"`、`"card:<cardId>"`),顯示用的 label 一律由 API 層透過 `lib/overviewItems.ts` 的 `labelForItemKey()` 依 key 即時解析,避免卡片改名後舊快照裡的名稱跟著過期。
+> **我自己的 `/overview` 不讀這份快取**,而是用前端已經抓回來的當月交易 / 房租水電 / 自訂項目 / 存錢罐金額現場加總(交易列表 API 回傳前已補生成到期的訂閱,所以一定包含最新的訂閱扣款,不會跟快取有時間差)。計算邏輯集中在純函式 `lib/summarizeMonth.ts` 的 `summarizeMonth()`(不碰資料庫),前端現場算與後端 `recomputeOverviewSummary`(經 `lib/computeMonthSummary.ts` 查原始資料)共用同一份,數字一定一致。`items` 裡的 `key` 只存代碼(例如 `"cash"`、`"card:<cardId>"`),顯示用的 label 一律由 API 層透過 `lib/overviewItems.ts` 的 `labelForItemKey()` 依 key 即時解析,避免卡片改名後舊快照裡的名稱跟著過期。
 
 ### Share(跨帳號項目分享)
 
@@ -279,7 +280,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 }
 ```
 
-> `(user, period)` 是 unique index,每個月要不要設定由使用者自己決定(不會自動沿用上個月)。實際存下的金額不落地,一律用 `lib/piggyBank.ts` 的 `piggyBankSaved()` 即時算:`max(min(存錢前結餘, amount), 0)`,並在 `/overview` 計入當月支出。存錢前結餘 = 自己當月的結餘再加上已納入(`included`)的分享項目淨額(`lib/overviewItems.ts` 的 `includedSharedNet()`);`/overview` 用畫面上的收支現場算(所以關掉「共享總額計入統計」時也會跟著變),`/piggy-bank` 則由 `lib/getPiggyBankHistory.ts` 從 `OverviewSummary` + `getIncomingShares()` 算出每個月的結餘。
+> `(user, period)` 是 unique index,每個月要不要設定由使用者自己決定(不會自動沿用上個月)。實際存下的金額在 `summarizeMonth()` 裡用 `lib/piggyBank.ts` 的 `piggyBankSaved()` 算:`max(min(存錢前結餘, amount), 0)`,並計入當月支出(`expense`)與結餘(`balance`)。存錢前結餘**只看自己的收支**,不含任何分享項目——這樣才不會依賴別人的資料,能安全寫進 `OverviewSummary` 快取(`piggyBank` 欄位),分享出去的支出/結餘也就包含存錢罐。`PUT /api/piggy-bank` 之後會重算該月快取;`/piggy-bank` 由 `lib/getPiggyBankHistory.ts` 直接讀快取(存錢前結餘 = `balance + piggyBank`)。
 
 ### Notification(系統公告)
 
@@ -390,7 +391,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 | Method / 路徑 | 說明 |
 |---|---|
 | `GET /api/piggy-bank` | 每個有設定存錢罐的月份(由舊到新):`{ months: [{ period, amount, balance, saved }] }`(`/piggy-bank` 頁面是 server component 直接呼叫同一個 `getPiggyBankHistory()`,不打這支;保留給需要單獨讀取的情境) |
-| `PUT /api/piggy-bank` | `{ period, amount }` 設定某月想存的金額(upsert),`amount: null` 刪除該月存錢罐 |
+| `PUT /api/piggy-bank` | `{ period, amount }` 設定某月想存的金額(upsert),`amount: null` 刪除該月存錢罐;之後觸發 `recomputeOverviewSummary` |
 
 ### 系統通知 `/api/notifications`
 
@@ -431,7 +432,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 5. **Row 2 — 收入 / 支出簡覽**:
    - 上方顯示該月 **Total**(收入總額、支出總額、結餘),以及現金/分期/訂閱/自訂項目/各張信用卡的分項總額
    - 「其他」區塊的分項:現金、房租水電、自訂項目、**分期 / 訂閱**(合併一格,各自金額放在 tooltip)、**存錢罐**(`components/PiggyBankTile.tsx`)、共享總額。存錢罐沒設定時顯示「存點錢」,設定後顯示「實際存下 / 想存」;點擊跳出小 dialog 輸入這個月想存的金額(即時預覽會存下多少、可移除,`PUT /api/piggy-bank`,存檔後只更新本地狀態,不重新載入整頁),dialog 內有連到 `/piggy-bank` 的連結
-   - **存錢罐存下的金額會計入本月支出**(也就因此影響結餘與每日可花預算):先算「存錢前結餘」= 收入 − 支出(含已納入的共享),存下 = `max(min(存錢前結餘, 想存), 0)`,再加進支出,避免結餘與存錢互相依賴。這是 `/overview` 顯示層的調整(跟共享項目一樣),**不寫進 `OverviewSummary`**,所以分享給別人的支出/結餘不含存錢罐
+   - **存錢罐存下的金額會計入本月支出**(也就因此影響結餘與每日可花預算):先算「存錢前結餘」= 自己的收入 − 支出(**不含共享項目**),存下 = `max(min(存錢前結餘, 想存), 0)`,再加進支出,避免結餘與存錢互相依賴。這段在 `summarizeMonth()` 裡,所以也會寫進 `OverviewSummary`,分享給別人的支出/結餘包含存錢罐;「共享總額計入統計」只是畫面上的加總,不影響存錢罐
    - 每張信用卡的狀態標籤點一下依序切換:未對帳 → 已對帳 → 已繳費 → 未對帳(`/api/card-reconciliations`);點卡片其他地方則導到 `/expense?period=&category=credit_card&card=<cardId>`,直接看這張卡當月的明細(含分期)
    - 底下分別列出該月 income / expense 的簡易預覽,點擊可導向 `/income` 或 `/expense` 查看完整列表
 6. **分享項目**:顯示別人分享給我的項目(金額即時來自對方的月度彙總),可勾選是否納入自己的支出/結餘統計(虛擬項目,不會真的存成一筆交易);也可以把自己的項目分享給其他 email;「我分享出去的項目」依 email 分組,每組可用「編輯項目」直接勾選增減分享給這個人的項目(`PUT /api/shares`),或逐項取消分享
@@ -486,6 +487,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
   generateSubscriptionTransactions.ts // 訂閱惰性生成交易
   summarizeMonth.ts               // 月度彙總純函式(前後端共用)
   computeMonthSummary.ts          // 後端:查原始資料 + summarizeMonth
+  getOverviewSummary.ts           // 讀 OverviewSummary 快取,沒有或過期(缺 piggyBank)就重算
   recomputeOverviewSummary.ts     // 重算並覆寫 OverviewSummary 快取(供分享使用)
   getCardReconciliationStatuses.ts, getIncomingShares.ts // 獨立 API 與 /api/overview 共用的查詢
   overviewItems.ts                // 可分享項目 key/label 對照、分享金額貢獻計算、已納入分享淨額

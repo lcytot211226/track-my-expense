@@ -9,7 +9,7 @@ import { ChevronRightIcon, PiggyBankIcon } from "./icons";
 /**
  * /overview「其他」區塊裡的存錢罐格子:點開 dialog 設定這個月想存的金額。
  * 實際存下 = max(min(存錢前結餘, 金額), 0),存下的金額會計入本月支出(由 OverviewClient 加總),
- * 所以這裡的 balance 必須是「還沒扣掉存錢罐之前」的結餘,避免循環計算。
+ * 所以這裡的 balance 必須是「還沒扣掉存錢罐之前」的自己結餘(不含共享項目),避免循環計算。
  */
 export default function PiggyBankTile({
   period,
@@ -20,7 +20,7 @@ export default function PiggyBankTile({
   period: string;
   /** 這個月想存的金額,沒設定是 null */
   amount: number | null;
-  /** 還沒扣掉存錢罐之前的結餘 */
+  /** 還沒扣掉存錢罐之前的自己結餘(不含共享項目) */
   balance: number;
   /** 設定/刪除成功後通知外層更新本地資料,不用重新載入整個總覽 */
   onChange: (amount: number | null) => void;

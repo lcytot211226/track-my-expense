@@ -9,13 +9,16 @@ const OverviewSummarySchema = new Schema(
     user: { type: Schema.Types.ObjectId, ref: "User", required: true },
     period: { type: String, required: true }, // "YYYY-MM"
     income: { type: Number, required: true, default: 0 },
-    // 支出總額(現金+分期+信用卡單筆交易 + 房租水電 + 自訂項目)
+    // 支出總額(現金+分期+信用卡單筆交易 + 房租水電 + 自訂項目 + 存錢罐存下的金額)
     expense: { type: Number, required: true, default: 0 },
     cash: { type: Number, required: true, default: 0 },
     installment: { type: Number, required: true, default: 0 },
     subscription: { type: Number, required: true, default: 0 },
     utility: { type: Number, required: true, default: 0 },
     customItems: { type: Number, required: true, default: 0 },
+    // 存錢罐實際存下的金額(已計入 expense)。刻意不給預設值:加入這個欄位之前寫入的舊快取沒有它,
+    // expense/balance 也還沒扣掉存錢罐,讀取端看到缺欄位就當作過期重算(見 lib/getOverviewSummary.ts)。
+    piggyBank: { type: Number },
     balance: { type: Number, required: true, default: 0 },
     cards: {
       type: [

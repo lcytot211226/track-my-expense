@@ -3,6 +3,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import PiggyBank from "@/lib/models/PiggyBank";
 import { requireAuth } from "@/lib/auth";
 import { getPiggyBankHistory } from "@/lib/getPiggyBankHistory";
+import { recomputeOverviewSummary } from "@/lib/recomputeOverviewSummary";
 
 /** 每個有設定存錢罐的月份,連同結餘與實際存下的金額(由舊到新)。 */
 export async function GET() {
@@ -12,7 +13,7 @@ export async function GET() {
   }
 
   await connectToDatabase();
-  const months = await getPiggyBankHistory(auth.userId, auth.email);
+  const months = await getPiggyBankHistory(auth.userId);
   return NextResponse.json({ months });
 }
 
@@ -41,5 +42,7 @@ export async function PUT(request: Request) {
       { upsert: true, runValidators: true }
     );
   }
+  // 存下的金額會計入當月支出/結餘,分享出去的數字要跟著更新
+  await recomputeOverviewSummary(auth.userId, period);
   return NextResponse.json({ amount });
 }

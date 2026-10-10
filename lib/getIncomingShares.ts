@@ -1,10 +1,9 @@
 import Share from "@/lib/models/Share";
 import Card from "@/lib/models/Card";
-import OverviewSummary from "@/lib/models/OverviewSummary";
 // 只需要註冊 User model 讓 populate("owner") 能運作,不需要值本身,所以只做 side-effect import。
 import "@/lib/models/User";
 import type { User as UserDoc } from "@/lib/models/User";
-import { recomputeOverviewSummary } from "@/lib/recomputeOverviewSummary";
+import { getOverviewSummary } from "@/lib/getOverviewSummary";
 import { cardIdFromItemKey, labelForItemKey } from "@/lib/overviewItems";
 
 /** 別人分享給 email 的項目;金額即時從分享者當月的 OverviewSummary 讀出,收件人自己決定要不要 included。 */
@@ -16,13 +15,7 @@ export async function getIncomingShares(email: string, period: string) {
   const ownerIds = Array.from(new Set(shares.map((s) => s.owner._id.toString())));
 
   // 各分享者的快取互不相依,同時讀;某個月還沒有快取的才現場算一次並補上。
-  const summaries = await Promise.all(
-    ownerIds.map(
-      async (ownerId) =>
-        (await OverviewSummary.findOne({ user: ownerId, period })) ??
-        (await recomputeOverviewSummary(ownerId, period))
-    )
-  );
+  const summaries = await Promise.all(ownerIds.map((ownerId) => getOverviewSummary(ownerId, period)));
   const summaryByOwner = new Map(ownerIds.map((ownerId, i) => [ownerId, summaries[i]]));
 
   const ownerCards = ownerIds.length > 0 ? await Card.find({ user: { $in: ownerIds } }) : [];
