@@ -14,6 +14,9 @@ const UtilitySchema = new Schema(
     // 總開關:只影響顯示/統計要不要把這個月的房租水電算進去,不會動到上面三個個別開關,
     // 關掉再打開時,租金/電費/水費原本各自的開關狀態都還在。
     enabled: { type: Boolean, required: true, default: true },
+    // 這個月的房租水電是否已繳費(像信用卡對帳狀態一樣,純粹是進度標記,不影響任何金額統計)。
+    // 只透過 PATCH /api/utilities 切換;PUT 整份覆寫時不會帶這個欄位,所以編輯金額不會把繳費狀態洗掉。
+    paid: { type: Boolean, required: true, default: false },
     elec: {
       type: new Schema(
         {

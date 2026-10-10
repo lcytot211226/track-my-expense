@@ -285,3 +285,29 @@ export function ArrowRightStartOnRectangleIcon({ className }: IconProps) {
     </Svg>
   );
 }
+
+export function BoltIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M13 3 5 13.5h6L10 21l8-10.5h-6L13 3Z" />
+    </Svg>
+  );
+}
+
+export function WaterDropIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M12 3.5c3 3.6 6 7.2 6 10.5a6 6 0 0 1-12 0c0-3.3 3-6.9 6-10.5Z" />
+    </Svg>
+  );
+}
+
+export function PiggyBankIcon({ className }: IconProps) {
+  return (
+    <Svg className={className}>
+      <path d="M19 11.5c0-3.3-3.1-6-7-6-1.1 0-2.2.2-3.1.6L6.5 4.5v3.1c-1 .8-1.7 1.8-2 2.9H3v3h1.6c.5 1.2 1.4 2.2 2.4 2.9v2.1h2.5v-1.2c.8.2 1.6.3 2.5.3s1.7-.1 2.5-.3v1.2H17v-2.1c1.2-.9 2-2.1 2-3.4h1.5v-1.5H19Z" />
+      <path d="M10 8.5h3" />
+      <path d="M15.5 11h.01" />
+    </Svg>
+  );
+}

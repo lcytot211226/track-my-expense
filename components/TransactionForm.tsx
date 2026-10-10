@@ -202,7 +202,7 @@ export default function TransactionForm({
             ))}
           </select>
         </div>
-      ) : <div></div>}
+      ) : type==="expense" && <div></div>}
 
       <div>
         <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">項目</label>

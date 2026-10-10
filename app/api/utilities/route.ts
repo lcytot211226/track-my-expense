@@ -54,6 +54,29 @@ export async function POST(request: Request) {
   return NextResponse.json({ utility }, { status: 201 });
 }
 
+/**
+ * 只切換某個月的繳費狀態 `{ year, month, paid }`。繳費狀態不影響金額統計,所以不用重算 OverviewSummary;
+ * 該月還沒有房租水電資料時回 404(沒有帳單就沒有繳費可言)。
+ */
+export async function PATCH(request: Request) {
+  const auth = await requireAuth();
+  if (!auth) {
+    return NextResponse.json({ error: "未登入" }, { status: 401 });
+  }
+
+  const { year, month, paid } = await request.json();
+  if (!year || !month || typeof paid !== "boolean") {
+    return NextResponse.json({ error: "缺少 year/month/paid" }, { status: 400 });
+  }
+
+  await connectToDatabase();
+  const utility = await Utility.findOneAndUpdate({ user: auth.userId, year, month }, { paid }, { new: true });
+  if (!utility) {
+    return NextResponse.json({ error: "這個月還沒有房租水電資料" }, { status: 404 });
+  }
+  return NextResponse.json({ utility });
+}
+
 /** Inline edit 用:依 year+month upsert 該月的房租水電費資料。前端一律送整份資料,不做局部更新。 */
 export async function PUT(request: Request) {
   const auth = await requireAuth();

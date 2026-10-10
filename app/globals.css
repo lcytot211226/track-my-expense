@@ -5,6 +5,7 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  color-scheme: light;
 }
 
 @theme inline {
@@ -17,6 +18,24 @@
 .dark {
   --background: #0a0a0a;
   --foreground: #ededed;
+  /* 讓原生表單元件(日期/月份選擇器的日曆 icon、彈出面板、捲軸)跟著用深色版本,否則黑底上的 icon 看不到 */
+  color-scheme: dark;
+}
+
+/* 原生日期/月份輸入框:Chrome 的內部欄位預設帶上下 padding、iOS Safari 預設置中且高度不同,
+   會讓文字看起來往上飄、跟旁邊同樣 py-2 的按鈕對不齊,統一歸零並固定行高。 */
+input[type="date"],
+input[type="month"] {
+  line-height: 1.25rem;
+}
+input::-webkit-datetime-edit,
+input::-webkit-datetime-edit-fields-wrapper {
+  padding: 0;
+  line-height: 1.25rem;
+}
+input::-webkit-date-and-time-value {
+  min-height: 1.25rem;
+  text-align: left;
 }
 
 body {

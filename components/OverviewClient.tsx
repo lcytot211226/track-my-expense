@@ -1,24 +1,26 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";
 import MonthPicker from "./MonthPicker";
 import OverviewChart, { type DailyExpense } from "./OverviewChart";
 import ExpenseAnalysis from "./ExpenseAnalysis";
 import QuickAddButton from "./QuickAddButton";
 import UtilityInlineEditor, { type UtilityDTO } from "./UtilityInlineEditor";
 import CustomItemsEditor, { type CustomItemDTO } from "./CustomItemsEditor";
+import PiggyBankTile from "./PiggyBankTile";
+import { piggyBankSaved } from "@/lib/piggyBank";
 import SharedItemsSection, { type IncomingShareDTO } from "./SharedItemsSection";
 import type { TransactionDTO } from "./TransactionsClient";
 import { usePeriod } from "@/lib/usePeriod";
 import { calculateDailyBudget, daysUntilSpecialDate } from "@/lib/calculateDailyBudget";
-import { sharedItemContribution } from "@/lib/overviewItems";
+import { includedSharedNet as calculateIncludedSharedNet } from "@/lib/overviewItems";
 import { summarizeMonth } from "@/lib/summarizeMonth";
 import type { CardDTO } from "./CardForm";
 import { useToast } from "./ToastProvider";
 import type { CardReconciliationStatus } from "@/lib/models/CardReconciliation";
 import {
   ArrowDownCircleIcon,
-  ArrowPathIcon,
   ArrowUpCircleIcon,
   BanknotesIcon,
   CalendarDaysIcon,
@@ -72,6 +74,7 @@ export default function OverviewClient() {
   const { showLoading, dismiss } = useToast();
   const [utility, setUtility] = useState<UtilityDTO | null>(null);
   const [customItems, setCustomItems] = useState<CustomItemDTO[]>([]);
+  const [piggyBankAmount, setPiggyBankAmount] = useState<number | null>(null);
   const [transactions, setTransactions] = useState<TransactionDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [specialDate, setSpecialDate] = useState<number | null>(null);
@@ -121,10 +124,12 @@ export default function OverviewClient() {
               elecEnabled: found.elecEnabled ?? true,
               waterEnabled: found.waterEnabled ?? true,
               enabled: found.enabled ?? true,
+              paid: found.paid ?? false,
             }
           : null
       );
       setCustomItems(overviewData.customItems ?? []);
+      setPiggyBankAmount(overviewData.piggyBankAmount ?? null);
       setTransactions(transactionsData.transactions ?? []);
       setCardStatuses(overviewData.cardStatuses ?? {});
       setCards(cardsData.cards ?? []);
@@ -187,13 +192,14 @@ export default function OverviewClient() {
   // 別人分享給我、且我選擇納入的項目,只在這裡虛擬加總,不會動到分享者原本的資料。
   // 各項目以「收入為正、支出為負」的角度加總成一個淨額(收入、結餘為正,開銷類為負):
   // 淨額為正代表這批分享項目整體是收入,加進收入;為負則代表整體是支出,加進支出。
-  const includedSharedNet = incomingShares
-    .filter((s) => s.included)
-    .reduce((sum, s) => sum - sharedItemContribution(s.itemKey, s.amount), 0);
+  const includedSharedNet = calculateIncludedSharedNet(incomingShares);
   const sharedIncomeAdjustment = includeSharedInStats && includedSharedNet > 0 ? includedSharedNet : 0;
   const sharedExpenseAdjustment = includeSharedInStats && includedSharedNet < 0 ? -includedSharedNet : 0;
   const incomeTotal = summary.income + sharedIncomeAdjustment;
-  const totalExpense = summary.expense + sharedExpenseAdjustment;
+  // 存錢罐存下的金額計入支出:先用「存錢前」的結餘算出能存多少,再加進支出,避免結餘↔存錢互相依賴。
+  const balanceBeforeSaving = incomeTotal - (summary.expense + sharedExpenseAdjustment);
+  const piggySaved = piggyBankAmount != null ? piggyBankSaved(balanceBeforeSaving, piggyBankAmount) : 0;
+  const totalExpense = summary.expense + sharedExpenseAdjustment + piggySaved;
   const balance = incomeTotal - totalExpense;
 
   const remainingDays = specialDate != null ? daysUntilSpecialDate(specialDate, new Date())+1 : null;
@@ -272,7 +278,14 @@ export default function OverviewClient() {
         </div>
       </div>
 
-      <UtilityInlineEditor year={year} month={month} utility={utility} loading={loading} onSaved={load} />
+      <UtilityInlineEditor
+        year={year}
+        month={month}
+        utility={utility}
+        loading={loading}
+        onSaved={load}
+        onPaidChange={(paid) => setUtility((prev) => (prev ? { ...prev, paid } : prev))}
+      />
 
       
       <CustomItemsEditor year={year} month={month} items={customItems} loading={loading} onSaved={load} />
@@ -336,8 +349,14 @@ export default function OverviewClient() {
                 return (
                   <div
                     key={card.id}
-                    className="rounded-md border border-zinc-200 p-3 text-center dark:border-zinc-800"
+                    className="relative rounded-md border border-zinc-200 p-3 text-center transition-colors hover:bg-zinc-50 dark:border-zinc-800 dark:hover:bg-zinc-800/50"
                   >
+                    {/* 整張卡片可點,導到支出頁並帶入這張卡的篩選;對帳狀態按鈕疊在上面(z-10)維持各自的點擊行為 */}
+                    <Link
+                      href={`/expense?${new URLSearchParams({ period, category: "credit_card", card: card.id })}`}
+                      aria-label={`查看 ${card.name} 的支出明細`}
+                      className="absolute inset-0 rounded-md"
+                    />
                     <div className="mb-1 flex items-center justify-between gap-1">
                       <p className="flex min-w-0 items-center gap-1 truncate text-sm text-zinc-500 dark:text-zinc-400">
                         <CreditCardIcon className="h-3.5 w-3.5 shrink-0" />
@@ -353,7 +372,7 @@ export default function OverviewClient() {
                               ? "本月帳單已對帳,點擊標記為已繳費"
                               : "尚未對帳:點擊標記這張卡本月的帳單已經核對完成"
                         }
-                        className={`flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium transition-colors ${
+                        className={`relative z-10 flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium transition-colors ${
                           status === "paid"
                             ? "bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-400 dark:hover:bg-sky-900/60"
                             : status === "reconciled"
@@ -412,20 +431,24 @@ export default function OverviewClient() {
             </p>
             <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">${customItemsTotal.toLocaleString()}</p>
           </div>
-          <div className="rounded-md border border-zinc-200 p-3 text-center dark:border-zinc-800">
+          <div
+            className="rounded-md border border-zinc-200 p-3 text-center dark:border-zinc-800"
+            title={`分期 $${installmentTotal.toLocaleString()} · 訂閱 $${subscriptionTotal.toLocaleString()}`}
+          >
             <p className="flex items-center justify-center gap-1 text-sm text-zinc-500 dark:text-zinc-400">
               <CalendarDaysIcon className="h-4 w-4" />
-              分期總開銷
+              分期 / 訂閱
             </p>
-            <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">${installmentTotal.toLocaleString()}</p>
-          </div>
-          <div className="rounded-md border border-zinc-200 p-3 text-center dark:border-zinc-800">
-            <p className="flex items-center justify-center gap-1 text-sm text-zinc-500 dark:text-zinc-400">
-              <ArrowPathIcon className="h-4 w-4" />
-              訂閱總開銷
+            <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+              ${(installmentTotal + subscriptionTotal).toLocaleString()}
             </p>
-            <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">${subscriptionTotal.toLocaleString()}</p>
           </div>
+          <PiggyBankTile
+            period={period}
+            amount={piggyBankAmount}
+            balance={balanceBeforeSaving}
+            onChange={setPiggyBankAmount}
+          />
           <button
             type="button"
             onClick={() => setIncludeSharedInStats((prev) => !prev)}

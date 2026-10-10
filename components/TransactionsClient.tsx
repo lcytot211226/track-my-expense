@@ -14,6 +14,7 @@ import {
   Columns2Icon,
   Columns3Icon,
 } from "./icons";
+import { useSearchParams } from "next/navigation";
 import { usePeriod } from "@/lib/usePeriod";
 
 export type TransactionDTO = {
@@ -63,6 +64,25 @@ const GRID_CLASS: Record<Columns, string> = {
   3: "grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3",
 };
 
+const CATEGORY_VALUES = ["cash", "credit_card", "installment"] as const;
+
+/**
+ * 從網址 query 讀出初始篩選:`?category=cash|credit_card|installment&card=<cardId>&q=<關鍵字>`
+ * (月份 `?period=` 由 usePeriod 處理)。不合法的值直接忽略;只帶 card 時視為信用卡篩選;
+ * 收入一律是現金,不吃 category / card。
+ */
+function readInitialFilters(searchParams: URLSearchParams, type: "income" | "expense", cards: CardDTO[]) {
+  const q = searchParams.get("q") ?? "";
+  if (type === "income") return { category: "", card: "", q };
+  const rawCategory = searchParams.get("category") ?? "";
+  const rawCard = searchParams.get("card") ?? "";
+  let category = (CATEGORY_VALUES as readonly string[]).includes(rawCategory) ? rawCategory : "";
+  let card = cards.some((c) => c._id === rawCard) ? rawCard : "";
+  if (card && !category) category = "credit_card";
+  if (category === "cash") card = "";
+  return { category, card, q };
+}
+
 const CATEGORY_LABEL: Record<TransactionDTO["category"], string> = {
   cash: "現金",
   credit_card: "信用卡",
@@ -83,9 +103,11 @@ export default function TransactionsClient({
   actions?: ReactNode;
 }) {
   const { period, setPeriod, ready } = usePeriod();
-  const [category, setCategory] = useState("");
-  const [cardFilter, setCardFilter] = useState("");
-  const [search, setSearch] = useState("");
+  const searchParams = useSearchParams();
+  const [initialFilters] = useState(() => readInitialFilters(searchParams, type, initialCards));
+  const [category, setCategory] = useState(initialFilters.category);
+  const [cardFilter, setCardFilter] = useState(initialFilters.card);
+  const [search, setSearch] = useState(initialFilters.q);
   const [columns, setColumns] = useState<Columns>(1);
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -104,16 +126,15 @@ export default function TransactionsClient({
     }
   }
 
+  // 只依月份向 API 抓當月全部資料;付款方式、信用卡篩選都在前端做,切換篩選不會重新打 API。
   const load = useCallback(async () => {
     setLoading(true);
     const params = new URLSearchParams({ type, billingPeriod: period });
-    if (category) params.set("category", category);
-    if (showCardFilter && cardFilter) params.set("card", cardFilter);
     const res = await fetch(`/api/transactions?${params.toString()}`);
     const data = await res.json();
     setTransactions(data.transactions ?? []);
     setLoading(false);
-  }, [type, period, category, cardFilter, showCardFilter]);
+  }, [type, period]);
 
   useEffect(() => {
     // 等 usePeriod 確定好正確的月份(ready)才 fetch,避免先用猜的月份抓一次資料造成畫面閃爍。
@@ -167,6 +188,16 @@ export default function TransactionsClient({
     load();
   }
 
+  // 付款方式篩選:跟 API 的規則一致,選「信用卡」時一併包含分期(分期本質上也是刷卡)。
+  const categoryFiltered = transactions.filter((t) => {
+    if (category === "credit_card") {
+      if (t.category !== "credit_card" && t.category !== "installment") return false;
+    } else if (category && t.category !== category) {
+      return false;
+    }
+    if (showCardFilter && cardFilter && t.card?._id !== cardFilter) return false;
+    return true;
+  });
   // 名稱搜尋只在前端過濾已載入的當月資料,不另外打 API。
   // 可用逗號(半形/全形/頓號)分隔多個關鍵字,名稱符合任一個就顯示。
   const keywords = search
@@ -175,11 +206,11 @@ export default function TransactionsClient({
     .filter(Boolean);
   const keyword = keywords.length > 0;
   const filteredTransactions = keyword
-    ? transactions.filter((t) => {
+    ? categoryFiltered.filter((t) => {
         const name = t.item.toLowerCase();
         return keywords.some((k) => name.includes(k));
       })
-    : transactions;
+    : categoryFiltered;
   // 排序同樣只在前端做。日期排序:同一天再依建立時間(跟主排序同方向),讓同日的紀錄維持輸入順序;
   // 金額排序:金額相同時依日期、再依建立時間(新到舊)。
   const sign = sortDir === "desc" ? -1 : 1;
@@ -199,16 +230,19 @@ export default function TransactionsClient({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <MonthPicker value={period} onChange={setPeriod} />
-          <select
-            value={category}
-            onChange={(e) => handleCategoryChange(e.target.value)}
-            className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
-          >
-            <option value="">全部付款方式</option>
-            <option value="cash">現金</option>
-            <option value="credit_card">信用卡</option>
-            <option value="installment">分期</option>
-          </select>
+          {/* 收入一律是現金(見 TransactionForm),付款方式篩選沒有意義,只在支出顯示 */}
+          {type === "expense" && (
+            <select
+              value={category}
+              onChange={(e) => handleCategoryChange(e.target.value)}
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
+            >
+              <option value="">全部付款方式</option>
+              <option value="cash">現金</option>
+              <option value="credit_card">信用卡</option>
+              <option value="installment">分期</option>
+            </select>
+          )}
           {showCardFilter && (
             <select
               value={cardFilter}
@@ -360,7 +394,10 @@ export default function TransactionsClient({
         {!loading && transactions.length === 0 && (
           <p className="col-span-full text-sm text-zinc-500 dark:text-zinc-400">這個月份還沒有{label}紀錄</p>
         )}
-        {!loading && transactions.length > 0 && visibleTransactions.length === 0 && (
+        {!loading && transactions.length > 0 && categoryFiltered.length === 0 && (
+          <p className="col-span-full text-sm text-zinc-500 dark:text-zinc-400">沒有符合篩選條件的{label}</p>
+        )}
+        {!loading && categoryFiltered.length > 0 && visibleTransactions.length === 0 && (
           <p className="col-span-full text-sm text-zinc-500 dark:text-zinc-400">找不到名稱符合「{search.trim()}」的{label}</p>
         )}
         {visibleTransactions.map((t) => (

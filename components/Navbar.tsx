@@ -12,6 +12,7 @@ const NAV_LINKS = [
   { href: "/income", label: "收入" },
   { href: "/expense", label: "支出" },
   { href: "/cards", label: "信用卡" },
+  { href: "/piggy-bank", label: "存錢罐" },
 ];
 
 const HIDDEN_PATHS = ["/", "/login", "/register", "/verify-email", "/forgot-password"];

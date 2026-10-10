@@ -55,3 +55,11 @@ export function sharedItemContribution(itemKey: string, amount: number): number 
   if (itemKey === "income" || itemKey === "balance") return -amount;
   return amount;
 }
+
+/**
+ * 收件人選擇納入(included)的分享項目,以「收入為正、支出為負」加總成一個淨額。
+ * /overview 用它調整收入/支出/結餘,存錢罐歷史(lib/getPiggyBankHistory.ts)用它算出同樣的結餘。
+ */
+export function includedSharedNet(items: { itemKey: string; amount: number; included: boolean }[]): number {
+  return items.filter((s) => s.included).reduce((sum, s) => sum - sharedItemContribution(s.itemKey, s.amount), 0);
+}

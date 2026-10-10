@@ -1,25 +1,11 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { TooltipContentProps } from "recharts";
 import type { NameType, ValueType } from "recharts/types/component/DefaultTooltipContent";
+import { useIsDark } from "@/lib/useIsDark";
 
 const EXPENSE_COLOR = { light: "#2a78d6", dark: "#3987e5" };
-
-function subscribeToThemeChange(callback: () => void) {
-  const observer = new MutationObserver(callback);
-  observer.observe(document.documentElement, { attributes: true, attributeFilter: ["class"] });
-  return () => observer.disconnect();
-}
-
-function getIsDarkSnapshot() {
-  return document.documentElement.classList.contains("dark");
-}
-
-function useIsDark() {
-  return useSyncExternalStore(subscribeToThemeChange, getIsDarkSnapshot, () => false);
-}
 
 export type DailyExpenseItem = { item: string; amount: number };
 export type DailyExpense = { label: string; amount: number; items: DailyExpenseItem[] };

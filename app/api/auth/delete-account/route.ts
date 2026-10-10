@@ -8,6 +8,7 @@ import Utility from "@/lib/models/Utility";
 import CustomItem from "@/lib/models/CustomItem";
 import OverviewSummary from "@/lib/models/OverviewSummary";
 import Share from "@/lib/models/Share";
+import PiggyBank from "@/lib/models/PiggyBank";
 import { AUTH_COOKIE_NAME, requireAuth, verifyPassword } from "@/lib/auth";
 
 export async function POST(request: Request) {
@@ -38,6 +39,7 @@ export async function POST(request: Request) {
     CustomItem.deleteMany({ user: auth.userId }),
     OverviewSummary.deleteMany({ user: auth.userId }),
     Share.deleteMany({ owner: auth.userId }),
+    PiggyBank.deleteMany({ user: auth.userId }),
   ]);
   await User.deleteOne({ _id: auth.userId });
 

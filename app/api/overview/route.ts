@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { connectToDatabase } from "@/lib/mongodb";
 import Utility from "@/lib/models/Utility";
 import CustomItem from "@/lib/models/CustomItem";
+import PiggyBank from "@/lib/models/PiggyBank";
 import { requireAuth } from "@/lib/auth";
 import { getCardReconciliationStatuses } from "@/lib/getCardReconciliationStatuses";
 import { getIncomingShares } from "@/lib/getIncomingShares";
@@ -25,12 +26,20 @@ export async function GET(request: Request) {
   const [year, month] = period.split("-").map(Number);
 
   await connectToDatabase();
-  const [utility, customItems, cardStatuses, incomingShares] = await Promise.all([
+  const [utility, customItems, cardStatuses, incomingShares, piggyBank] = await Promise.all([
     Utility.findOne({ user: auth.userId, year, month }),
     CustomItem.find({ user: auth.userId, year, month }).sort({ createdAt: 1 }),
     getCardReconciliationStatuses(auth.userId, period),
     getIncomingShares(auth.email, period),
+    PiggyBank.findOne({ user: auth.userId, period }),
   ]);
 
-  return NextResponse.json({ utility, customItems, cardStatuses, incomingShares });
+  return NextResponse.json({
+    utility,
+    customItems,
+    cardStatuses,
+    incomingShares,
+    // 這個月存錢罐想存的金額,沒設定是 null;實際存下多少由前端用當月結餘即時算
+    piggyBankAmount: piggyBank?.amount ?? null,
+  });
 }
