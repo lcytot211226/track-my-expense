@@ -6,6 +6,7 @@ import { requireAuth } from "@/lib/auth";
 import { calculateBillingPeriod } from "@/lib/calculateBillingPeriod";
 import { generateDueSubscriptionTransactions } from "@/lib/generateSubscriptionTransactions";
 import { recomputeOverviewSummary } from "@/lib/recomputeOverviewSummary";
+import { parsePointsDiscount } from "@/lib/pointsDiscount";
 
 export async function GET(request: Request) {
   const auth = await requireAuth();
@@ -45,10 +46,15 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json();
-  const { type, date, category, item, card, installmentInfo, amount, posted } = body;
+  const { type, date, category, item, card, installmentInfo, amount, posted, pointsDiscount } = body;
 
   if (!type || !date || !category || !item || amount === undefined) {
     return NextResponse.json({ error: "缺少必要欄位" }, { status: 400 });
+  }
+
+  const discount = parsePointsDiscount(pointsDiscount, { type, category, amount: Number(amount) });
+  if ("error" in discount) {
+    return NextResponse.json({ error: discount.error }, { status: 400 });
   }
 
   await connectToDatabase();
@@ -77,6 +83,8 @@ export async function POST(request: Request) {
     card: category === "cash" ? null : card,
     installmentInfo: category === "installment" ? installmentInfo : null,
     amount,
+    // 沒有折抵就不寫這個欄位
+    ...(discount.value != null ? { pointsDiscount: discount.value } : {}),
     posted: isPosted,
     billingPeriod,
   });

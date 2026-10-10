@@ -49,6 +49,9 @@ export default function TransactionForm({
   );
   const [item, setItem] = useState(transaction?.item ?? "");
   const [amount, setAmount] = useState(transaction ? String(transaction.amount) : "");
+  const [pointsDiscount, setPointsDiscount] = useState(
+    transaction?.pointsDiscount ? String(transaction.pointsDiscount) : ""
+  );
   const [totalAmount, setTotalAmount] = useState("");
   const [cardId, setCardId] = useState(transaction?.card?._id ?? cards[0]?._id ?? "");
   const [totalNumber, setTotalNumber] = useState(
@@ -60,6 +63,8 @@ export default function TransactionForm({
 
   // 新增分期:一次輸入總金額+總期數,後端會自動生成每一期,而不是手動輸入單一一期的金額。
   const isCreatingInstallmentGroup = category === "installment" && !transaction;
+  // 點數折抵只適用信用卡單筆支出
+  const showPointsDiscount = type === "expense" && category === "credit_card";
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -99,6 +104,8 @@ export default function TransactionForm({
       category,
       item,
       amount: Number(amount),
+      // 空字串 / 不適用都送 null,後端就不會存這個欄位(編輯時會移除)
+      pointsDiscount: showPointsDiscount && pointsDiscount !== "" ? Number(pointsDiscount) : null,
       posted,
       card: category === "cash" ? null : cardId,
       installmentInfo:
@@ -128,6 +135,7 @@ export default function TransactionForm({
     // 新增成功:保留日期/付款方式等設定,只清掉項目和金額,方便連續輸入下一筆。
     setItem("");
     setAmount("");
+    setPointsDiscount("");
     itemInputRef.current?.focus();
     onAdded?.();
   }
@@ -244,7 +252,29 @@ export default function TransactionForm({
         </div>
       )}
 
-      <div></div>
+      {showPointsDiscount ? (
+        <div>
+          <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">
+            點數折抵<span className="ml-1 text-xs font-normal text-zinc-400 dark:text-zinc-500">(選填)</span>
+          </label>
+          <input
+            type="number"
+            min={0}
+            max={amount || undefined}
+            value={pointsDiscount}
+            onChange={(e) => setPointsDiscount(e.target.value)}
+            placeholder="0"
+            className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
+          />
+          {Number(pointsDiscount) > 0 && amount !== "" && (
+            <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">
+              實付 ${(Number(amount) - Number(pointsDiscount)).toLocaleString()}
+            </p>
+          )}
+        </div>
+      ) : (
+        <div></div>
+      )}
 
       {category === "installment" &&
         (isCreatingInstallmentGroup ? (

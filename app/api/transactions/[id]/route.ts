@@ -5,6 +5,7 @@ import Card from "@/lib/models/Card";
 import { requireAuth } from "@/lib/auth";
 import { calculateBillingPeriod } from "@/lib/calculateBillingPeriod";
 import { recomputeOverviewSummary } from "@/lib/recomputeOverviewSummary";
+import { parsePointsDiscount } from "@/lib/pointsDiscount";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -31,7 +32,7 @@ export async function PUT(request: Request, { params }: Context) {
 
   const { id } = await params;
   const body = await request.json();
-  const { type, date, category, item, card, installmentInfo, amount, posted } = body;
+  const { type, date, category, item, card, installmentInfo, amount, posted, pointsDiscount } = body;
 
   await connectToDatabase();
   const existing = await Transaction.findOne({ _id: id, user: auth.userId });
@@ -58,16 +59,30 @@ export async function PUT(request: Request, { params }: Context) {
 
   const billingPeriod = calculateBillingPeriod(finalDate, finalCategory, finalPosted, cardBillingInfo);
 
+  const finalType = type ?? existing.type;
+  const finalAmount = amount ?? existing.amount;
+  // 沒帶 pointsDiscount 就沿用原本的值(若改成不適用的付款方式/類型,會在這裡被清掉)
+  const discount = parsePointsDiscount(pointsDiscount === undefined ? existing.pointsDiscount : pointsDiscount, {
+    type: finalType,
+    category: finalCategory,
+    amount: Number(finalAmount),
+  });
+  if ("error" in discount) {
+    return NextResponse.json({ error: discount.error }, { status: 400 });
+  }
+
   const transaction = await Transaction.findOneAndUpdate(
     { _id: id, user: auth.userId },
     {
-      type: type ?? existing.type,
+      type: finalType,
       date: finalDate,
       category: finalCategory,
       item: item ?? existing.item,
       card: finalCard,
       installmentInfo: finalCategory === "installment" ? (installmentInfo ?? existing.installmentInfo) : null,
-      amount: amount ?? existing.amount,
+      amount: finalAmount,
+      // 沒有折抵就把欄位整個移除,而不是存 0
+      ...(discount.value != null ? { pointsDiscount: discount.value } : { $unset: { pointsDiscount: 1 } }),
       posted: finalPosted,
       billingPeriod,
       // 改成非分期就跟原本那組分期脫鉤,避免之後誤刪到其他期數。

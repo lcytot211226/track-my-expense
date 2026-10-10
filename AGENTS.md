@@ -106,6 +106,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
     totalNumber: number              // 總共幾期
   } | null,
   amount: number,                    // 金額
+  pointsDiscount?: number,           // 點數折抵(選填),僅 type = expense 且 category = credit_card 且有折抵(> 0)時才存在,其餘交易沒有這個欄位;實際計入所有統計的金額 = amount - pointsDiscount(`lib/pointsDiscount.ts` 的 `netAmount()`)
   posted: boolean,                   // 是否已在結帳日當下成功入帳(預設 true)。若為 false,代表結帳當下銀行還沒處理,要再往後遞延一個月
   billingPeriod: string,             // 計算後的歸屬月份,格式 "YYYY-MM",此筆交易會顯示在哪個月份頁面,由下方邏輯計算後存入(方便查詢,避免每次都要重算)
   installmentGroupId: ObjectId | null, // 同一次分期購買生成的所有期數共用同一個 id,刪除其中一期會整組一起刪
@@ -329,8 +330,8 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 | Method / 路徑 | 說明 |
 |---|---|
 | `GET /api/transactions` | 支援 `?type=&billingPeriod=&category=&card=` 篩選;查 `category=credit_card` 時會一併帶出 `installment`(分期本質上也是刷卡)。**讀取前一律先呼叫 `generateDueSubscriptionTransactions()` 補生成到期的訂閱交易**,確保 `/income`、`/expense`、`/overview` 永遠看得到最新結果 |
-| `POST /api/transactions` | 建立單筆交易(現金/信用卡單筆);自動用 `calculateBillingPeriod()` 算出 `billingPeriod` 並存入,同時觸發 `recomputeOverviewSummary` |
-| `GET/PUT/DELETE /api/transactions/[id]` | 更新時若新舊 `billingPeriod` 不同,新舊兩個月份的彙總都會重算;刪除若該筆有 `installmentGroupId`,會把同一組所有期數一起刪除並重算受影響的每個月份 |
+| `POST /api/transactions` | 建立單筆交易(現金/信用卡單筆);信用卡單筆支出可帶 `pointsDiscount`(0 ~ amount,0/空值不存);自動用 `calculateBillingPeriod()` 算出 `billingPeriod` 並存入,同時觸發 `recomputeOverviewSummary` |
+| `GET/PUT/DELETE /api/transactions/[id]` | 更新時沒帶 `pointsDiscount` 沿用原值,帶 `null`/0 或改成非信用卡單筆支出會移除該欄位;若新舊 `billingPeriod` 不同,新舊兩個月份的彙總都會重算;刪除若該筆有 `installmentGroupId`,會把同一組所有期數一起刪除並重算受影響的每個月份 |
 | `POST /api/transactions/installment` | `{ item, date, card, totalAmount, totalNumber }`,一次生成整組分期交易,共用同一個 `installmentGroupId`;金額除不盡的餘數放在第一期,其餘各期平分 |
 
 ### 訂閱 `/api/subscriptions`

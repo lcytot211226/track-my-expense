@@ -18,6 +18,7 @@ import { summarizeMonth } from "@/lib/summarizeMonth";
 import type { CardDTO } from "./CardForm";
 import { useToast } from "./ToastProvider";
 import type { CardReconciliationStatus } from "@/lib/models/CardReconciliation";
+import { netAmount } from "@/lib/pointsDiscount";
 import {
   ArrowDownCircleIcon,
   ArrowUpCircleIcon,
@@ -173,7 +174,7 @@ export default function OverviewClient() {
     transactions: transactions.map((t) => ({
       type: t.type,
       category: t.category,
-      amount: t.amount,
+      amount: netAmount(t),
       subscription: t.subscription,
       cardId: t.card?._id ?? null,
     })),
@@ -221,9 +222,9 @@ export default function OverviewClient() {
   const expenseItemsByDate = new Map<string, { item: string; amount: number }[]>();
   for (const t of chartExpenseList) {
     const key = t.date.slice(0, 10);
-    expenseByDate.set(key, (expenseByDate.get(key) ?? 0) + t.amount);
+    expenseByDate.set(key, (expenseByDate.get(key) ?? 0) + netAmount(t));
     const items = expenseItemsByDate.get(key) ?? [];
-    items.push({ item: t.item, amount: t.amount });
+    items.push({ item: t.item, amount: netAmount(t) });
     expenseItemsByDate.set(key, items);
   }
   const sortedDateKeys = Array.from(
@@ -272,7 +273,7 @@ export default function OverviewClient() {
         <div className="mt-3 flex justify-end">
           <ExpenseAnalysis
             period={period}
-            expenses={chartExpenseList}
+            expenses={chartExpenseList.map((t) => ({ ...t, amount: netAmount(t) }))}
             includesInstallment={showInstallmentInChart}
           />
         </div>

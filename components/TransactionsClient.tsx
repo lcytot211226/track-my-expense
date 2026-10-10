@@ -16,6 +16,7 @@ import {
 } from "./icons";
 import { useSearchParams } from "next/navigation";
 import { usePeriod } from "@/lib/usePeriod";
+import { netAmount } from "@/lib/pointsDiscount";
 
 export type TransactionDTO = {
   _id: string;
@@ -26,6 +27,8 @@ export type TransactionDTO = {
   card: CardDTO | null;
   installmentInfo: { currentNumber: number; totalNumber: number } | null;
   amount: number;
+  /** 點數折抵,只有信用卡單筆支出且有折抵時才有 */
+  pointsDiscount?: number;
   posted: boolean;
   billingPeriod: string;
   subscription: string | null;
@@ -217,12 +220,12 @@ export default function TransactionsClient({
   const visibleTransactions = [...filteredTransactions].sort((a, b) => {
     const byDate = a.date.localeCompare(b.date);
     const byCreated = (a.createdAt ?? "").localeCompare(b.createdAt ?? "");
-    const byAmount = a.amount - b.amount;
+    const byAmount = netAmount(a) - netAmount(b);
     return sortKey === "date"
       ? sign * (byDate || byCreated)
       : sign * byAmount || -byDate || -byCreated;
   });
-  const total = visibleTransactions.reduce((sum, t) => sum + t.amount, 0);
+  const total = visibleTransactions.reduce((sum, t) => sum + netAmount(t), 0);
   const label = type === "income" ? "收入" : "支出";
 
   return (
@@ -418,7 +421,14 @@ export default function TransactionsClient({
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-3">
-              <span className="mr-auto font-medium text-zinc-900 dark:text-zinc-50">${t.amount.toLocaleString()}</span>
+              <span className="mr-auto font-medium text-zinc-900 dark:text-zinc-50">
+                ${netAmount(t).toLocaleString()}
+                {t.pointsDiscount ? (
+                  <span className="ml-2 text-xs font-normal text-zinc-500 dark:text-zinc-400">
+                    ${t.amount.toLocaleString()} − 點數 ${t.pointsDiscount.toLocaleString()}
+                  </span>
+                ) : null}
+              </span>
               <button
                 type="button"
                 onClick={() => {

@@ -10,6 +10,7 @@ import { piggyBankSaved } from "@/lib/piggyBank";
 export type SummaryTransaction = {
   type: "income" | "expense";
   category: "installment" | "cash" | "credit_card";
+  /** 實際計入統計的金額(已扣掉點數折抵,見 lib/pointsDiscount.ts 的 netAmount) */
   amount: number;
   /** 由訂閱生成的交易才有值,只用來判斷是不是訂閱 */
   subscription: unknown;

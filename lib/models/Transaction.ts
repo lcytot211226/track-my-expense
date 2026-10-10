@@ -23,6 +23,8 @@ const TransactionSchema = new Schema(
       default: null,
     },
     amount: { type: Number, required: true },
+    /** 點數折抵,僅信用卡單筆支出且有折抵時才存在;實際計入統計的金額 = amount - pointsDiscount(見 lib/pointsDiscount.ts)。 */
+    pointsDiscount: { type: Number, min: 0 },
     posted: { type: Boolean, required: true, default: true },
     billingPeriod: { type: String, required: true },
     /** 同一筆分期購買一次生成的所有期數共用這個 id,刪除時整組一起刪。 */
