@@ -190,6 +190,7 @@ export default function OverviewClient() {
   // 每張卡都列出來,這個月完全沒刷卡的卡顯示 $0
   const cardTotalById = new Map(summary.cards.map((c) => [c.card, c.total]));
   const cardBreakdown = cards.map((c) => ({ id: c._id, name: c.name, total: cardTotalById.get(c._id) ?? 0 }));
+  const cardsTotal = cardBreakdown.reduce((sum, c) => sum + c.total, 0);
   // 別人分享給我、且我選擇納入的項目,只在這裡虛擬加總,不會動到分享者原本的資料。
   // 各項目以「收入為正、支出為負」的角度加總成一個淨額(收入、結餘為正,開銷類為負):
   // 淨額為正代表這批分享項目整體是收入,加進收入;為負則代表整體是支出,加進支出。
@@ -340,10 +341,20 @@ export default function OverviewClient() {
 
         {cardBreakdown.length > 0 && (
           <>
-            <h3 className="mb-2 flex items-center gap-1.5 text-sm font-medium text-zinc-500 dark:text-zinc-400">
-              <CreditCardIcon className="h-4 w-4" />
-              信用卡
-            </h3>
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h3 className="flex items-center gap-1.5 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                <CreditCardIcon className="h-4 w-4" />
+                信用卡
+              </h3>
+              {/* 所有卡片本月刷卡金額合計(含分期),點擊導到支出頁的信用卡篩選 */}
+              <Link
+                href={`/expense?${new URLSearchParams({ period, category: "credit_card" })}`}
+                className="text-sm text-zinc-500 transition-colors hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-50"
+              >
+                合計{" "}
+                <span className="font-semibold text-zinc-900 dark:text-zinc-50">${cardsTotal.toLocaleString()}</span>
+              </Link>
+            </div>
             <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
               {cardBreakdown.map((card) => {
                 const status = cardStatuses[card.id] ?? null;
