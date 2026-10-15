@@ -1,6 +1,9 @@
 import Link from "next/link";
 
-const ADMIN_TOOLS = [{ href: "/admin/notification", title: "系統通知", description: "發送公告給所有使用者" }];
+const ADMIN_TOOLS = [
+  { href: "/admin/users", title: "使用者", description: "近 30 天加入人數、近 7 天新增交易,以及所有使用者清單" },
+  { href: "/admin/notification", title: "系統通知", description: "發送公告給所有使用者" },
+];
 
 export default function AdminPage() {
   return (

@@ -5,6 +5,7 @@ import type { CardDTO } from "./CardForm";
 import Modal from "./Modal";
 import TransactionForm from "./TransactionForm";
 import { PlusIcon } from "./icons";
+import { readCachedCards } from "@/lib/cardsCache";
 
 type TransactionType = "income" | "expense";
 
@@ -16,19 +17,25 @@ const TYPE_OPTIONS: { value: TransactionType; label: string }[] = [
 /**
  * 手機版 /overview 右下角的浮動「+」按鈕,點開直接用 TransactionForm 快速記一筆收入/支出,
  * 不用先跳到 /income 或 /expense。sm 以上不顯示(桌面版畫面夠寬,直接用各頁的新增按鈕)。
+ *
+ * 卡片清單由 /overview 傳入(總覽本來就會抓 /api/cards);總覽還沒載入完時 cards 是 null,
+ * 先用 localStorage 快取(lib/cardsCache.ts)顯示表單,不用等 API,最新清單回來後自動換掉。
  */
-export default function QuickAddButton({ onAdded }: { onAdded: () => void }) {
+export default function QuickAddButton({
+  cards,
+  onAdded,
+}: {
+  cards: CardDTO[] | null;
+  onAdded: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<TransactionType>("expense");
-  // 卡片清單只在第一次打開時抓,之後沿用
-  const [cards, setCards] = useState<CardDTO[] | null>(null);
+  const [cachedCards, setCachedCards] = useState<CardDTO[] | null>(null);
+  const shownCards = cards ?? cachedCards;
 
-  async function handleOpen() {
+  function handleOpen() {
     setOpen(true);
-    if (cards) return;
-    const res = await fetch("/api/cards");
-    const data = res.ok ? await res.json() : {};
-    setCards(data.cards ?? []);
+    if (!cards && !cachedCards) setCachedCards(readCachedCards());
   }
 
   return (
@@ -65,12 +72,12 @@ export default function QuickAddButton({ onAdded }: { onAdded: () => void }) {
             </button>
           ))}
         </div>
-        {cards ? (
+        {shownCards ? (
           // 切換收入/支出時用 key 重建表單,讓付款方式等狀態回到該類型的預設值
           <TransactionForm
             key={type}
             type={type}
-            cards={cards}
+            cards={shownCards}
             onSaved={() => setOpen(false)}
             onAdded={onAdded}
             onCancel={() => setOpen(false)}

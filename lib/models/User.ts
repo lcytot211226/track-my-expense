@@ -16,6 +16,9 @@ const UserSchema = new Schema(
   { timestamps: true }
 );
 
+// 後台使用者清單(新到舊分頁)與「近 30 天加入人數」用
+UserSchema.index({ createDate: -1 });
+
 export type User = InferSchemaType<typeof UserSchema> & { _id: mongoose.Types.ObjectId };
 
 export default (mongoose.models.User as mongoose.Model<InferSchemaType<typeof UserSchema>>) ||

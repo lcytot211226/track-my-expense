@@ -37,6 +37,8 @@ const TransactionSchema = new Schema(
 
 TransactionSchema.index({ user: 1, billingPeriod: 1 });
 TransactionSchema.index({ user: 1, installmentGroupId: 1 });
+// 後台統計「近 7 天新增交易數」用
+TransactionSchema.index({ createdAt: 1 });
 
 export type Transaction = InferSchemaType<typeof TransactionSchema> & {
   _id: mongoose.Types.ObjectId;

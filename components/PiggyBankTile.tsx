@@ -85,7 +85,7 @@ export default function PiggyBankTile({
           存錢罐
         </p>
         {amount == null ? (
-          <p className="text-lg font-semibold text-zinc-400 dark:text-zinc-500">存點錢</p>
+          <p className="text-lg font-semibold text-zinc-400 dark:text-zinc-500">存點錢偷著樂</p>
         ) : (
           <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
             ${saved.toLocaleString()}

@@ -4,6 +4,7 @@ import { useEffect, useState, type ComponentType, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Modal from "./Modal";
+import { clearCachedCards } from "@/lib/cardsCache";
 import SpecialDateForm from "./SpecialDateForm";
 import ChangePasswordForm from "./ChangePasswordForm";
 import AddToHomeScreenGuide from "./AddToHomeScreenGuide";
@@ -105,6 +106,7 @@ export default function SettingsClient() {
   async function handleLogout() {
     setLoggingOut(true);
     await fetch("/api/auth/logout", { method: "POST" });
+    clearCachedCards();
     router.push("/login");
     router.refresh();
   }

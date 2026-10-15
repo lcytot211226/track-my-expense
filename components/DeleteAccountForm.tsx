@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import ConfirmDialog from "./ConfirmDialog";
+import { clearCachedCards } from "@/lib/cardsCache";
 
 export default function DeleteAccountForm() {
   const router = useRouter();
@@ -35,6 +36,7 @@ export default function DeleteAccountForm() {
       return;
     }
 
+    clearCachedCards();
     router.push("/login");
     router.refresh();
   }

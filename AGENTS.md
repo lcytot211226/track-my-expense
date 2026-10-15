@@ -403,6 +403,12 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 | `GET/POST /api/admin/notifications` **(Admin)** | 列出(預設 10 筆,`?limit=` 最多 100)/ 發布新公告(`{ title, content }`,發布後重置所有使用者已讀狀態) |
 | `PUT/DELETE /api/admin/notifications/[id]` **(Admin)** | 編輯 / 刪除一則公告 |
 
+### 使用者(後台)`/api/admin/users`
+
+| Method / 路徑 | 說明 |
+|---|---|
+| `GET /api/admin/users` **(Admin)** | 分頁列出所有使用者(`createDate` 新到舊,每頁 20 筆):`?page=`(從 1 開始)、`?q=` 依 email 模糊搜尋;回傳 `{ users: [{ _id, email, createDate, emailVerified }], total, page, pageSize }` |
+
 ## 頁面結構
 
 | 路徑 | 說明 |
@@ -419,6 +425,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 | `/piggy-bank` | 存錢罐每月概況(`components/PiggyBankClient.tsx`):累計存下 / 平均每月 / 達標月數,加上每月存下金額的長條圖(tooltip 顯示想存的金額與當月結餘);沒有任何設定時引導回 `/overview` 設定 |
 | `/settings` | 個人設定(`components/SettingsClient.tsx`):最上方顯示目前登入的帳號 email(來自 `GET /api/auth/me`),下面是分組的列表式選單,點每一列在 dialog 裡打開對應內容——月結算日(`specialDate`)、外觀(淺色 / 深色 / 跟隨系統,`ThemeSettings.tsx`)、加到手機主畫面教學(`AddToHomeScreenGuide.tsx`,純說明,不做 PWA)、修改密碼、刪除帳號;另有「管理員後台」連結(僅 `isAdmin`)與「登出」 |
 | `/admin`、`/admin/notification` | 僅 `ADMIN_EMAIL` 可進入,發布/編輯/刪除系統公告 |
+| `/admin/users` | 僅 `ADMIN_EMAIL` 可進入。上方兩張統計卡(`components/AdminStatsSection.tsx`,資料由 server component 直接呼叫 `lib/getAdminStats.ts`):**近 30 天加入人數**(依 `User.createDate`)與**近 7 天新增交易數**(依 `Transaction.createdAt`,含訂閱自動生成與分期各期),一律以台灣時間切日;每張卡附每日新增數長條圖(x 軸 M/D,窗口內沒資料的日子補 0),以及跟昨天窗口比的升降 = 今天的數量 − 昨天窗口第一天(今天往前 30 / 7 天那天)的數量。下方是使用者清單(`components/AdminUsersClient.tsx`,打 `GET /api/admin/users` 分頁 + email 搜尋) |
 
 > 導覽列(`components/Navbar.tsx`):左邊是 `components/Logo.tsx` 的 Subanote 品牌字(SVG,Pacifico 手寫體 + 品牌色漸層),中間是頁面選單(桌面版用 `grid-cols-[1fr_auto_1fr]` 讓選單真正置中),右邊是通知鈴鐺 / 設定 / 深淺色快速切換;手機版收進漢堡選單。管理員入口與登出不在導覽列,在 `/settings`。登入、註冊、驗證、忘記密碼頁與未登入首頁的標題也都用同一個 Logo。
 
@@ -432,13 +439,13 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 4. **Row 1 — 房租電費**(`components/UtilityInlineEditor.tsx`):預覽壓成精簡的一列——標題列是本月合計、總開關、繳費標籤與編輯,底下一排四格帳單日 / 租金 / 電費 / 水費(電費水費的度數 × 單價說明放在 tooltip,沒計入統計的格子變淡加刪除線)。繳費標籤點一下在「未繳費 ↔ 已繳費」之間切換(`PATCH /api/utilities`,樂觀更新,顏色同信用卡的已繳費;手機只顯示圖示)。租金/電費/水費/總開關可個別開關是否計入統計,**點「編輯」可直接在此區塊內編輯並儲存**(inline edit,帳單日 / 租金 / 電費 / 水費各一個同格式的框);該月沒有資料時顯示空狀態與「新增本月房租水電」按鈕
 5. **Row 2 — 收入 / 支出簡覽**:
    - 上方顯示該月 **Total**(收入總額、支出總額、結餘),以及現金/分期/訂閱/自訂項目/各張信用卡的分項總額
-   - 「其他」區塊的分項:現金、房租水電、自訂項目、**分期 / 訂閱**(合併一格,各自金額放在 tooltip)、**存錢罐**(`components/PiggyBankTile.tsx`)、共享總額。存錢罐沒設定時顯示「存點錢」,設定後顯示「實際存下 / 想存」;點擊跳出小 dialog 輸入這個月想存的金額(即時預覽會存下多少、可移除,`PUT /api/piggy-bank`,存檔後只更新本地狀態,不重新載入整頁),dialog 內有連到 `/piggy-bank` 的連結
+   - 「其他」區塊的分項:現金、房租水電、自訂項目、**分期 / 訂閱**(合併一格,各自金額放在 tooltip)、**存錢罐**(`components/PiggyBankTile.tsx`)、共享總額。存錢罐沒設定時顯示「存點錢偷著樂」,設定後顯示「實際存下 / 想存」;點擊跳出小 dialog 輸入這個月想存的金額(即時預覽會存下多少、可移除,`PUT /api/piggy-bank`,存檔後只更新本地狀態,不重新載入整頁),dialog 內有連到 `/piggy-bank` 的連結
    - **存錢罐存下的金額會計入本月支出**(也就因此影響結餘與每日可花預算):先算「存錢前結餘」= 自己的收入 − 支出(**不含共享項目**),存下 = `max(min(存錢前結餘, 想存), 0)`,再加進支出,避免結餘與存錢互相依賴。這段在 `summarizeMonth()` 裡,所以也會寫進 `OverviewSummary`,分享給別人的支出/結餘包含存錢罐;「共享總額計入統計」只是畫面上的加總,不影響存錢罐
    - 信用卡區塊標題右側顯示所有卡片本月刷卡金額**合計**(含分期,等於下方各卡金額加總),點擊導到 `/expense?period=&category=credit_card`
    - 每張信用卡的狀態標籤點一下依序切換:未對帳 → 已對帳 → 已繳費 → 未對帳(`/api/card-reconciliations`);點卡片其他地方則導到 `/expense?period=&category=credit_card&card=<cardId>`,直接看這張卡當月的明細(含分期)
    - 底下分別列出該月 income / expense 的簡易預覽,點擊可導向 `/income` 或 `/expense` 查看完整列表
 6. **分享項目**:顯示別人分享給我的項目(金額即時來自對方的月度彙總),可勾選是否納入自己的支出/結餘統計(虛擬項目,不會真的存成一筆交易);也可以把自己的項目分享給其他 email;「我分享出去的項目」依 email 分組,每組可用「編輯項目」直接勾選增減分享給這個人的項目(`PUT /api/shares`),或逐項取消分享
-7. **快速記帳浮動按鈕**(`components/QuickAddButton.tsx`,僅手機版 `sm:hidden`):右下角「+」按鈕,點開 dialog 切換收入/支出,直接沿用 `TransactionForm` 新增交易,新增後重新載入總覽
+7. **快速記帳浮動按鈕**(`components/QuickAddButton.tsx`,僅手機版 `sm:hidden`):右下角「+」按鈕,點開 dialog 切換收入/支出,直接沿用 `TransactionForm` 新增交易,新增後重新載入總覽。信用卡清單直接用總覽已經抓回來的 `/api/cards`(不再另外打 API);總覽還沒載入完時先用 localStorage 的 `cards-cache`(`lib/cardsCache.ts`)顯示表單,最新清單回來後覆蓋並更新快取(內容沒變不寫入)。登入 / 登出 / 刪除帳號時清掉快取,避免顯示上一個帳號的卡片
 
 > 房租水電區塊的電費/水費用 `components/RoundedAmount.tsx` 顯示:預設顯示四捨五入後的整數(也就是實際計入統計的金額),若實際金額有小數,點一下可切換顯示實際金額。
 
@@ -467,6 +474,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
     layout.tsx                    // 檢查 ADMIN_EMAIL,非管理員導回 /overview
     page.tsx
     /notification/page.tsx
+    /users/page.tsx
   /api
     /auth/{register,login,logout,me,verify-email,resend-code,forgot-password,reset-password,change-password,delete-account}/route.ts
     /cards/route.ts, /cards/[id]/route.ts
@@ -479,7 +487,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
     /piggy-bank/route.ts
     /shares/route.ts, /shares/[id]/route.ts, /shares/incoming/route.ts
     /notifications/route.ts, /notifications/mark-read/route.ts
-    /admin/notifications/route.ts, /admin/notifications/[id]/route.ts
+    /admin/notifications/route.ts, /admin/notifications/[id]/route.ts, /admin/users/route.ts
 /lib
   mongodb.ts                      // 資料庫連線
   auth.ts                         // 密碼雜湊、JWT 簽發/驗證、requireAuth()、ADMIN_EMAIL
@@ -497,6 +505,8 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
   useIsDark.ts                    // 圖表用:目前是否深色模式
   otp.ts, email.ts                // 驗證碼產生、Resend 寄信
   theme.ts                        // 主題偏好(淺色/深色/跟隨系統)讀寫
+  getAdminStats.ts                // 後台:近 30 天加入人數 / 近 7 天新增交易的每日統計與升降
+  cardsCache.ts                   // 快速記帳用的信用卡清單 localStorage 快取
   addMonths.ts, period.ts, usePeriod.ts, demoData.ts
   models/
     User.ts, Card.ts, Transaction.ts, Subscription.ts, Utility.ts,
@@ -508,7 +518,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
   SubscriptionForm.tsx, SubscriptionsClient.tsx, ExpenseAnalysis.tsx
   PiggyBankTile.tsx, PiggyBankClient.tsx
   ShareForm.tsx, SharedItemsSection.tsx, QuickAddButton.tsx, RoundedAmount.tsx, AddToHomeScreenGuide.tsx
-  NotificationBell.tsx, AdminNotificationClient.tsx, Logo.tsx, ThemeSettings.tsx
+  NotificationBell.tsx, AdminNotificationClient.tsx, AdminStatsSection.tsx, AdminUsersClient.tsx, Logo.tsx, ThemeSettings.tsx
   SettingsClient.tsx, SpecialDateForm.tsx, ChangePasswordForm.tsx, DeleteAccountForm.tsx
   ForgotPasswordForm.tsx, VerifyEmailForm.tsx
   Modal.tsx, ConfirmDialog.tsx, ToastProvider.tsx, RouteChangeToast.tsx, icons.tsx

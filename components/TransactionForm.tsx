@@ -53,7 +53,10 @@ export default function TransactionForm({
     transaction?.pointsDiscount ? String(transaction.pointsDiscount) : ""
   );
   const [totalAmount, setTotalAmount] = useState("");
-  const [cardId, setCardId] = useState(transaction?.card?._id ?? cards[0]?._id ?? "");
+  const [selectedCardId, setCardId] = useState(transaction?.card?._id ?? cards[0]?._id ?? "");
+  // 快速記帳會先用快取的卡片清單開表單,最新清單回來後若原本選的卡已不存在就改選第一張
+  const cardId =
+    !selectedCardId || cards.some((c) => c._id === selectedCardId) ? selectedCardId : cards[0]?._id ?? "";
   const [totalNumber, setTotalNumber] = useState(
     transaction?.installmentInfo ? String(transaction.installmentInfo.totalNumber) : "2"
   );

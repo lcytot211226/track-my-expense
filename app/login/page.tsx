@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 import Logo from "@/components/Logo";
+import { clearCachedCards } from "@/lib/cardsCache";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -34,6 +35,7 @@ export default function LoginPage() {
       return;
     }
 
+    clearCachedCards();
     router.push("/overview");
     router.refresh();
   }

@@ -19,6 +19,7 @@ import type { CardDTO } from "./CardForm";
 import { useToast } from "./ToastProvider";
 import type { CardReconciliationStatus } from "@/lib/models/CardReconciliation";
 import { netAmount } from "@/lib/pointsDiscount";
+import { writeCachedCards } from "@/lib/cardsCache";
 import {
   ArrowDownCircleIcon,
   ArrowUpCircleIcon,
@@ -84,6 +85,8 @@ export default function OverviewClient() {
   // 各卡本月對帳進度,沒出現在裡面的卡 = 未對帳
   const [cardStatuses, setCardStatuses] = useState<Record<string, CardReconciliationStatus>>({});
   const [cards, setCards] = useState<CardDTO[]>([]);
+  // 第一次載入完成前,快速記帳先用 localStorage 快取的卡片清單
+  const [cardsLoaded, setCardsLoaded] = useState(false);
   const [incomingShares, setIncomingShares] = useState<IncomingShareDTO[]>([]);
 
   const { year, month } = parsePeriod(period);
@@ -132,7 +135,12 @@ export default function OverviewClient() {
       setPiggyBankAmount(overviewData.piggyBankAmount ?? null);
       setTransactions(transactionsData.transactions ?? []);
       setCardStatuses(overviewData.cardStatuses ?? {});
-      setCards(cardsData.cards ?? []);
+      if (cardsRes.ok) {
+        const freshCards: CardDTO[] = cardsData.cards ?? [];
+        setCards(freshCards);
+        setCardsLoaded(true);
+        writeCachedCards(freshCards);
+      }
       setIncomingShares(overviewData.incomingShares ?? []);
     } finally {
       dismiss(toastId);
@@ -484,7 +492,7 @@ export default function OverviewClient() {
       </div>
       <SharedItemsSection incomingItems={incomingShares} loading={loading} onIncomingChanged={load} />
 
-      <QuickAddButton onAdded={load} />
+      <QuickAddButton cards={cardsLoaded ? cards : null} onAdded={load} />
 
       
     </div>
