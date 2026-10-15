@@ -74,7 +74,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 > - 帳號尚未啟用時嘗試登入,會回傳 `403 + needsVerification: true`,前端自動導向 `/verify-email` 輸入驗證碼(可在該頁重新寄送)
 > - 忘記密碼(`/forgot-password`):輸入 email 寄送驗證碼,驗證碼與新密碼一起送出後更新密碼,同時視為完成 email 驗證。無論帳號是否存在都回傳成功,避免洩漏 email 是否已註冊。
 > - 登入後用 JWT 存在 httpOnly cookie(sliding session,見上方「認證與存取控制」),所有頁面(除了 `/`、`/login`、`/register`、`/verify-email`、`/forgot-password`)都需要驗證身份,未登入導回 `/login`
-> - `specialDate`(月結算日)的實際用途:`/overview` 用它算出「距離下次結算日還有幾天」,再用「本月結餘 ÷ 剩餘天數」算出每日可花預算(`lib/calculateDailyBudget.ts`),沒設定就不顯示這個區塊。
+> - `specialDate`(月結算日)的實際用途:`/overview` 用它算出「距離下次結算日還有幾天」,再用「本月結餘 ÷ 剩餘天數」算出每日可花預算(`lib/calculateDailyBudget.ts`);沒設定時 `/overview` 該處顯示設定提示,可直接在總覽頁設定。
 
 ### Card(信用卡)
 
@@ -435,7 +435,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 
 1. **月份選擇器**:切換不同月份(對應 `billingPeriod` / Utility 的 year+month)
 2. **Overview 圖表**:用 Recharts 顯示該月份的收入 vs 支出圖表,呈現該月 `billingPeriod` 底下所有交易的收支狀況。圖表下方有「分析」按鈕(`components/ExpenseAnalysis.tsx`),用 dialog 顯示支出合計 / 有花錢天數 / 平均每天、單日支出總額前三名(依當天各筆支出分色的長條,每天最多列 3 筆、其餘收進可展開的「其他」)與單筆支出前三名(附佔本月比例),名次不足一律補空白佔位;統計範圍跟圖表一樣受「包含分期訂閱」切換影響
-3. **每日可花預算**:若使用者在 `/settings` 設定了月結算日(`specialDate`),顯示距離下次結算日還有幾天,以及「本月結餘 ÷ 剩餘天數」算出的每日可花預算(`lib/calculateDailyBudget.ts`);沒設定則不顯示
+3. **每日可花預算**:若使用者在 `/settings` 設定了月結算日(`specialDate`),顯示距離下次結算日還有幾天,以及「本月結餘 ÷ 剩餘天數」算出的每日可花預算(`lib/calculateDailyBudget.ts`);沒設定則改顯示提示(`components/SpecialDatePrompt.tsx`),說明這個功能並可直接在此輸入日期設定(`PATCH /api/auth/me`),設定後立刻顯示預算;右上角叉叉可關閉提示,記在 localStorage 的 `special-date-prompt-dismissed`,之後在這個瀏覽器不再顯示(仍可到 `/settings` 設定)
 4. **Row 1 — 房租電費**(`components/UtilityInlineEditor.tsx`):預覽壓成精簡的一列——標題列是本月合計、總開關、繳費標籤與編輯,底下一排四格帳單日 / 租金 / 電費 / 水費(電費水費的度數 × 單價說明放在 tooltip,沒計入統計的格子變淡加刪除線)。繳費標籤點一下在「未繳費 ↔ 已繳費」之間切換(`PATCH /api/utilities`,樂觀更新,顏色同信用卡的已繳費;手機只顯示圖示)。租金/電費/水費/總開關可個別開關是否計入統計,**點「編輯」可直接在此區塊內編輯並儲存**(inline edit,帳單日 / 租金 / 電費 / 水費各一個同格式的框);該月沒有資料時顯示空狀態與「新增本月房租水電」按鈕
 5. **Row 2 — 收入 / 支出簡覽**:
    - 上方顯示該月 **Total**(收入總額、支出總額、結餘),以及現金/分期/訂閱/自訂項目/各張信用卡的分項總額
@@ -516,7 +516,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
   TransactionForm.tsx, TransactionsClient.tsx, ExpenseClient.tsx
   CardForm.tsx, UtilityInlineEditor.tsx, CustomItemsEditor.tsx
   SubscriptionForm.tsx, SubscriptionsClient.tsx, ExpenseAnalysis.tsx
-  PiggyBankTile.tsx, PiggyBankClient.tsx
+  PiggyBankTile.tsx, PiggyBankClient.tsx, SpecialDatePrompt.tsx
   ShareForm.tsx, SharedItemsSection.tsx, QuickAddButton.tsx, RoundedAmount.tsx, AddToHomeScreenGuide.tsx
   NotificationBell.tsx, AdminNotificationClient.tsx, AdminStatsSection.tsx, AdminUsersClient.tsx, Logo.tsx, ThemeSettings.tsx
   SettingsClient.tsx, SpecialDateForm.tsx, ChangePasswordForm.tsx, DeleteAccountForm.tsx

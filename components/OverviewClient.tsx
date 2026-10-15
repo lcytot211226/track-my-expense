@@ -9,6 +9,7 @@ import QuickAddButton from "./QuickAddButton";
 import UtilityInlineEditor, { type UtilityDTO } from "./UtilityInlineEditor";
 import CustomItemsEditor, { type CustomItemDTO } from "./CustomItemsEditor";
 import PiggyBankTile from "./PiggyBankTile";
+import SpecialDatePrompt from "./SpecialDatePrompt";
 import SharedItemsSection, { type IncomingShareDTO } from "./SharedItemsSection";
 import type { TransactionDTO } from "./TransactionsClient";
 import { usePeriod } from "@/lib/usePeriod";
@@ -79,6 +80,8 @@ export default function OverviewClient() {
   const [transactions, setTransactions] = useState<TransactionDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [specialDate, setSpecialDate] = useState<number | null>(null);
+  // /api/auth/me 回來前不知道有沒有設定,先什麼都不顯示,避免設定提示閃一下
+  const [specialDateLoaded, setSpecialDateLoaded] = useState(false);
   const [showInstallmentInChart, setShowInstallmentInChart] = useState(false);
   // 共享總額是否要實際計入上方收入/支出/結餘統計,讓使用者自己決定,預設納入。
   const [includeSharedInStats, setIncludeSharedInStats] = useState(true);
@@ -94,7 +97,10 @@ export default function OverviewClient() {
   useEffect(() => {
     fetch("/api/auth/me")
       .then((res) => res.json())
-      .then((data) => setSpecialDate(typeof data.specialDate === "number" ? data.specialDate : null));
+      .then((data) => {
+        setSpecialDate(typeof data.specialDate === "number" ? data.specialDate : null);
+        setSpecialDateLoaded(true);
+      });
   }, []);
 
   const load = useCallback(async () => {
@@ -344,6 +350,8 @@ export default function OverviewClient() {
             </div>
           </div>
         )}
+        {/* 沒設定月結算日的人多半不知道有每日可花預算這功能,直接在這裡提示並讓他們設定 */}
+        {specialDateLoaded && !showDailyBudget && <SpecialDatePrompt onSaved={setSpecialDate} />}
 
         <hr className="mb-4 border-zinc-200 dark:border-zinc-800" />
 
