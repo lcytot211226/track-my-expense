@@ -15,8 +15,9 @@ export default async function ExpensePage() {
   const cardDTOs: CardDTO[] = cards.map((card) => ({
     _id: card._id.toString(),
     name: card.name,
-    closingDate: card.closingDate,
-    paymentDate: card.paymentDate,
+    isDebit: !!card.isDebit,
+    closingDate: card.closingDate ?? null,
+    paymentDate: card.paymentDate ?? null,
   }));
 
   const subscriptions = await Subscription.find({ user: auth!.userId })
@@ -32,8 +33,9 @@ export default async function ExpensePage() {
       ? {
           _id: sub.card._id.toString(),
           name: sub.card.name,
-          closingDate: sub.card.closingDate,
-          paymentDate: sub.card.paymentDate,
+          isDebit: !!sub.card.isDebit,
+          closingDate: sub.card.closingDate ?? null,
+          paymentDate: sub.card.paymentDate ?? null,
         }
       : null,
     startDate: sub.startDate.toISOString(),

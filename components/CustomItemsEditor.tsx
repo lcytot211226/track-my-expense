@@ -103,7 +103,7 @@ export default function CustomItemsEditor({
 
       {items.length === 0 ? (
         <p className="mb-3 text-sm text-zinc-500 dark:text-zinc-400">
-          這個月還沒有自訂項目,例如孝親費,可以自行新增,不是每個月都要有。
+          這個月還沒有自訂項目,例如孝親費,可以自行新增。
         </p>
       ) : (
         <ul className="mb-4 flex flex-col gap-2">

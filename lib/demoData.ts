@@ -15,7 +15,7 @@ export const DEMO_DAILY_EXPENSE = [
   { label: "09/10", amount: 390, items: [{ item: "早餐", amount: 390 }] },
   { label: "09/11", amount: 0, items: [] },
   { label: "09/12", amount: 3000, items: [{ item: "筆電分期(第2/12期)", amount: 3000 }] },
-  { label: "09/13", amount: 0, items: [] },
+  { label: "09/13", amount: 1100, items: [{ item: "加油", amount: 1100 }] },
   { label: "09/14", amount: 780, items: [{ item: "聚餐", amount: 780 }] },
 ];
 
@@ -27,6 +27,7 @@ export const DEMO_EXPENSE_ITEMS = [
   { date: "09/08", item: "Netflix + Spotify", amount: 450, payment: "國泰CUBE卡", kind: "subscription" as const },
   { date: "09/10", item: "早餐", amount: 390, payment: "現金", kind: "cash" as const },
   { date: "09/12", item: "筆電分期(第2/12期)", amount: 3000, payment: "台新@GoGo卡", kind: "installment" as const },
+  { date: "09/13", item: "加油", amount: 1100, payment: "郵局簽帳金融卡", kind: "credit_card" as const },
   { date: "09/14", item: "聚餐", amount: 780, payment: "現金", kind: "cash" as const },
 ];
 
@@ -61,19 +62,29 @@ export const DEMO_EXPENSE_PREVIEW = [...DEMO_EXPENSE_ITEMS]
   .map(({ date, payment, item, amount }) => ({ date, payment, item, amount }));
 
 /** 每張卡的當月刷卡總額,把單筆刷卡/訂閱/分期不管哪種類別,依 payment 對應到卡片名稱加總,對帳狀態則是示範用的固定假資料。 */
-export const DEMO_CARDS = [
+export const DEMO_CARDS: {
+  name: string;
+  isDebit: boolean;
+  total: number;
+  reconciled: boolean;
+}[] = [
   {
     name: "國泰CUBE卡",
-    closingDate: 15,
-    paymentDate: 3,
+    isDebit: false,
     total: DEMO_EXPENSE_ITEMS.filter((t) => t.payment === "國泰CUBE卡").reduce((sum, t) => sum + t.amount, 0),
     reconciled: true,
   },
   {
     name: "台新@GoGo卡",
-    closingDate: 20,
-    paymentDate: 8,
+    isDebit: false,
     total: DEMO_EXPENSE_ITEMS.filter((t) => t.payment === "台新@GoGo卡").reduce((sum, t) => sum + t.amount, 0),
+    reconciled: false,
+  },
+  {
+    // 簽帳金融卡:消費當月就算,不需要對帳
+    name: "郵局簽帳金融卡",
+    isDebit: true,
+    total: DEMO_EXPENSE_ITEMS.filter((t) => t.payment === "郵局簽帳金融卡").reduce((sum, t) => sum + t.amount, 0),
     reconciled: false,
   },
 ];

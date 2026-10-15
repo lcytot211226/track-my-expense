@@ -1,7 +1,7 @@
 import Subscription from "@/lib/models/Subscription";
 import Transaction from "@/lib/models/Transaction";
 import Card from "@/lib/models/Card";
-import { calculateBillingPeriod } from "@/lib/calculateBillingPeriod";
+import { calculateBillingPeriod, toCardBillingInfo, type CardBillingInfo } from "@/lib/calculateBillingPeriod";
 import { addMonthsClamped } from "@/lib/addMonths";
 import { recomputeOverviewSummary } from "@/lib/recomputeOverviewSummary";
 
@@ -33,11 +33,11 @@ export async function generateDueSubscriptionTransactions(userId: string) {
     let occurrenceIndex = sub.lastGeneratedDate ? monthsBetweenUTC(sub.startDate, sub.lastGeneratedDate) + 1 : 0;
     let occurrence = addMonthsClamped(sub.startDate, occurrenceIndex);
 
-    let cardBillingInfo: { closingDate: number; paymentDate: number } | null = null;
+    let cardBillingInfo: CardBillingInfo | null = null;
     if (sub.category === "credit_card" && sub.card) {
       const cardDoc = await Card.findOne({ _id: sub.card, user: userId });
       if (cardDoc) {
-        cardBillingInfo = { closingDate: cardDoc.closingDate, paymentDate: cardDoc.paymentDate };
+        cardBillingInfo = toCardBillingInfo(cardDoc);
       }
     }
 

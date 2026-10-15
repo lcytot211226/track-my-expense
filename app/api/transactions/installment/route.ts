@@ -4,7 +4,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import Transaction from "@/lib/models/Transaction";
 import Card from "@/lib/models/Card";
 import { requireAuth } from "@/lib/auth";
-import { calculateBillingPeriod } from "@/lib/calculateBillingPeriod";
+import { calculateBillingPeriod, toCardBillingInfo } from "@/lib/calculateBillingPeriod";
 import { addMonthsClamped } from "@/lib/addMonths";
 import { recomputeOverviewSummary } from "@/lib/recomputeOverviewSummary";
 
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
   if (!cardDoc) {
     return NextResponse.json({ error: "找不到卡片" }, { status: 404 });
   }
-  const cardBillingInfo = { closingDate: cardDoc.closingDate, paymentDate: cardDoc.paymentDate };
+  const cardBillingInfo = toCardBillingInfo(cardDoc);
 
   const purchaseDate = new Date(date);
   const installmentGroupId = new mongoose.Types.ObjectId();

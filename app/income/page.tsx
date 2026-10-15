@@ -14,8 +14,9 @@ export default async function IncomePage() {
   const cardDTOs: CardDTO[] = cards.map((card) => ({
     _id: card._id.toString(),
     name: card.name,
-    closingDate: card.closingDate,
-    paymentDate: card.paymentDate,
+    isDebit: !!card.isDebit,
+    closingDate: card.closingDate ?? null,
+    paymentDate: card.paymentDate ?? null,
   }));
 
   return (

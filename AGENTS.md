@@ -83,8 +83,9 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
   _id: ObjectId,
   user: ObjectId,         // 參照 User._id
   name: string,           // 卡片名稱,例如「國泰CUBE卡」
-  closingDate: number,    // 結帳日,1-31
-  paymentDate: number,    // 繳款日,1-31
+  isDebit: boolean,       // 是否為簽帳金融卡,預設 false(舊資料沒有此欄位視為 false);只能在新增時決定,之後不能更改
+  closingDate?: number,   // 結帳日,1-31;簽帳金融卡沒有這個欄位
+  paymentDate?: number,   // 繳款日,1-31;簽帳金融卡沒有這個欄位
   createdAt: Date,
   updatedAt: Date
 }
@@ -138,6 +139,8 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
    - Step 3:若 `posted = true` → `billingPeriod = "2026-09"`;若 `posted = false`(15 號沒入帳)→ 再延一個月 → `billingPeriod = "2026-10"`
 
    這段邏輯實作在 `lib/calculateBillingPeriod.ts` 的 `calculateBillingPeriod()`,在新增/編輯交易、切換 `posted` 狀態、生成分期或訂閱交易時都會重新呼叫並存回 `billingPeriod` 欄位。
+
+3. **簽帳金融卡(關聯卡片 `isDebit = true`)**:不管 category 是什麼,都跟現金一樣直接取交易日期所在月份,不跑結帳邏輯,也不受 `posted` 影響(交易表單選到簽帳金融卡時不顯示「結帳日當下已入帳」)。各 API 一律用 `toCardBillingInfo(cardDoc)` 把卡片轉成計算用的資訊。
 
 ### Subscription(訂閱 / 固定月付項目)
 
@@ -322,8 +325,8 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 | Method / 路徑 | 說明 |
 |---|---|
 | `GET /api/cards` | 列出我的所有卡片 |
-| `POST /api/cards` | `{ name, closingDate, paymentDate }` 新增 |
-| `GET/PUT/DELETE /api/cards/[id]` | 讀取/更新/刪除單張卡片 |
+| `POST /api/cards` | `{ name, closingDate, paymentDate, isDebit }` 新增;`isDebit: true`(簽帳金融卡)時不需要也不存結帳日 / 繳款日 |
+| `GET/PUT/DELETE /api/cards/[id]` | 讀取/更新/刪除單張卡片;PUT 忽略 `isDebit`,卡片類型不能改(簽帳金融卡只能改名稱) |
 
 ### 交易 `/api/transactions`
 
@@ -421,7 +424,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
 | `/income` | 收入總覽(列表 + 篩選) |
 | `/expense` | 支出總覽(列表 + 篩選),含信用卡分期、訂閱管理入口與信用卡對帳標記 |
 | `/overview` | 主要整合頁面,詳見下方說明 |
-| `/cards` | 信用卡管理(新增/編輯/刪除) |
+| `/cards` | 信用卡管理(新增/編輯/刪除),新增時可勾選「簽帳金融卡」,勾選後隱藏結帳日 / 繳款日;編輯時鎖住無法更改 |
 | `/piggy-bank` | 存錢罐每月概況(`components/PiggyBankClient.tsx`):累計存下 / 平均每月 / 達標月數,加上每月存下金額的長條圖(tooltip 顯示想存的金額與當月結餘);沒有任何設定時引導回 `/overview` 設定 |
 | `/settings` | 個人設定(`components/SettingsClient.tsx`):最上方顯示目前登入的帳號 email(來自 `GET /api/auth/me`),下面是分組的列表式選單,點每一列在 dialog 裡打開對應內容——月結算日(`specialDate`)、外觀(淺色 / 深色 / 跟隨系統,`ThemeSettings.tsx`)、加到手機主畫面教學(`AddToHomeScreenGuide.tsx`,純說明,不做 PWA)、修改密碼、刪除帳號;另有「管理員後台」連結(僅 `isAdmin`)與「登出」 |
 | `/admin`、`/admin/notification` | 僅 `ADMIN_EMAIL` 可進入,發布/編輯/刪除系統公告 |
@@ -442,7 +445,7 @@ EMAIL_KEY=<Resend API Key,用於寄送註冊 / 忘記密碼的驗證碼信件>
    - 「其他」區塊的分項:現金、房租水電、自訂項目、**分期 / 訂閱**(合併一格,各自金額放在 tooltip)、**存錢罐**(`components/PiggyBankTile.tsx`)、共享總額。存錢罐沒設定時顯示「存點錢偷著樂」,設定後顯示「實際存下 / 想存」;點擊跳出小 dialog 輸入這個月想存的金額(即時預覽會存下多少、可移除,`PUT /api/piggy-bank`,存檔後只更新本地狀態,不重新載入整頁),dialog 內有連到 `/piggy-bank` 的連結
    - **存錢罐存下的金額會計入本月支出**(也就因此影響結餘與每日可花預算):先算「存錢前結餘」= 自己的收入 − 支出(**不含共享項目**),存下 = `max(min(存錢前結餘, 想存), 0)`,再加進支出,避免結餘與存錢互相依賴。這段在 `summarizeMonth()` 裡,所以也會寫進 `OverviewSummary`,分享給別人的支出/結餘包含存錢罐;「共享總額計入統計」只是畫面上的加總,不影響存錢罐
    - 信用卡區塊標題右側顯示所有卡片本月刷卡金額**合計**(含分期,等於下方各卡金額加總),點擊導到 `/expense?period=&category=credit_card`
-   - 每張信用卡的狀態標籤點一下依序切換:未對帳 → 已對帳 → 已繳費 → 未對帳(`/api/card-reconciliations`);點卡片其他地方則導到 `/expense?period=&category=credit_card&card=<cardId>`,直接看這張卡當月的明細(含分期)
+   - 每張信用卡的狀態標籤點一下依序切換:未對帳 → 已對帳 → 已繳費 → 未對帳(`/api/card-reconciliations`);簽帳金融卡沒有帳單,不顯示對帳標籤,信用卡圖示塗成紫色區分;點卡片其他地方則導到 `/expense?period=&category=credit_card&card=<cardId>`,直接看這張卡當月的明細(含分期)
    - 底下分別列出該月 income / expense 的簡易預覽,點擊可導向 `/income` 或 `/expense` 查看完整列表
 6. **分享項目**:顯示別人分享給我的項目(金額即時來自對方的月度彙總),可勾選是否納入自己的支出/結餘統計(虛擬項目,不會真的存成一筆交易);也可以把自己的項目分享給其他 email;「我分享出去的項目」依 email 分組,每組可用「編輯項目」直接勾選增減分享給這個人的項目(`PUT /api/shares`),或逐項取消分享
 7. **快速記帳浮動按鈕**(`components/QuickAddButton.tsx`,僅手機版 `sm:hidden`):右下角「+」按鈕,點開 dialog 切換收入/支出,直接沿用 `TransactionForm` 新增交易,新增後重新載入總覽。信用卡清單直接用總覽已經抓回來的 `/api/cards`(不再另外打 API);總覽還沒載入完時先用 localStorage 的 `cards-cache`(`lib/cardsCache.ts`)顯示表單,最新清單回來後覆蓋並更新快取(內容沒變不寫入)。登入 / 登出 / 刪除帳號時清掉快取,避免顯示上一個帳號的卡片

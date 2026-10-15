@@ -66,6 +66,8 @@ export default function TransactionForm({
 
   // 新增分期:一次輸入總金額+總期數,後端會自動生成每一期,而不是手動輸入單一一期的金額。
   const isCreatingInstallmentGroup = category === "installment" && !transaction;
+  // 簽帳金融卡沒有結帳日,「結帳日當下已入帳」不適用
+  const isDebitCard = category !== "cash" && !!cards.find((c) => c._id === cardId)?.isDebit;
   // 點數折抵只適用信用卡單筆支出
   const showPointsDiscount = type === "expense" && category === "credit_card";
 
@@ -304,7 +306,7 @@ export default function TransactionForm({
           </div>
         ))}
 
-      {category !== "cash" && !isCreatingInstallmentGroup && (
+      {category !== "cash" && !isCreatingInstallmentGroup && !isDebitCard && (
         <div className="flex items-end">
           <label className="flex items-center gap-2 text-sm text-zinc-700 dark:text-zinc-300">
             <input type="checkbox" checked={posted} onChange={(e) => setPosted(e.target.checked)} />

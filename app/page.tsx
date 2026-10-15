@@ -41,7 +41,7 @@ import {
 const FEATURES = [
   {
     title: "信用卡結帳日自動判斷",
-    description: "輸入卡片的結帳日/繳款日,消費會自動算出實際入帳月份,不用自己心算跨月的帳單。",
+    description: "輸入卡片的結帳日/繳款日,消費會自動算出實際入帳月份,不用自己心算跨月的帳單;簽帳金融卡則直接算在消費當月。",
     color: { light: "#2a78d6", dark: "#3987e5" },
     icon: (
       <path d="M2 6a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6Zm0 4h20M6 15h4" />
@@ -283,6 +283,64 @@ export default async function Home() {
 
             <hr className="mb-4 border-zinc-200 dark:border-zinc-800" />
 
+            {/* 同 /overview 的信用卡區塊:各卡本月金額 + 對帳狀態,簽帳金融卡用紫色圖示且不需要對帳 */}
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <h3 className="flex items-center gap-1.5 text-sm font-medium text-zinc-500 dark:text-zinc-400">
+                <CreditCardIcon className="h-4 w-4" />
+                信用卡
+              </h3>
+              <p className="text-sm text-zinc-500 dark:text-zinc-400">
+                合計{" "}
+                <span className="font-semibold text-zinc-900 dark:text-zinc-50">
+                  ${DEMO_CARDS.reduce((sum, c) => sum + c.total, 0).toLocaleString()}
+                </span>
+              </p>
+            </div>
+            <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
+              {DEMO_CARDS.map((card) => (
+                <div
+                  key={card.name}
+                  className="rounded-md border border-zinc-200 p-3 text-center dark:border-zinc-800"
+                >
+                  <div className="mb-1 flex items-center justify-between gap-1">
+                    <p className="flex min-w-0 items-center gap-1 truncate text-sm text-zinc-500 dark:text-zinc-400">
+                      {card.isDebit ? (
+                        <span title="簽帳金融卡" className="shrink-0">
+                          <CreditCardIcon className="h-3.5 w-3.5 fill-violet-100 text-violet-600 dark:fill-violet-900/60 dark:text-violet-400" />
+                        </span>
+                      ) : (
+                        <CreditCardIcon className="h-3.5 w-3.5 shrink-0" />
+                      )}
+                      <span className="truncate">{card.name}</span>
+                    </p>
+                    {!card.isDebit && (
+                      <span
+                        className={`flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium ${
+                          card.reconciled
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
+                            : "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"
+                        }`}
+                      >
+                        {card.reconciled ? (
+                          <>
+                            <CheckCircleIcon className="h-3.5 w-3.5" />
+                            已對帳
+                          </>
+                        ) : (
+                          <QuestionMarkCircleIcon className="h-3.5 w-3.5" />
+                        )}
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
+                    ${card.total.toLocaleString()}
+                  </p>
+                </div>
+              ))}
+            </div>
+            <hr className="mb-4 border-zinc-200 dark:border-zinc-800" />
+
+            <h3 className="mb-2 text-sm font-medium text-zinc-500 dark:text-zinc-400">其他</h3>
             <div className="mb-4 grid grid-cols-2 gap-3 sm:grid-cols-3">
               <div className="rounded-md border border-zinc-200 p-3 text-center dark:border-zinc-800">
                 <p className="flex items-center justify-center gap-1 text-sm text-zinc-500 dark:text-zinc-400">
@@ -376,49 +434,6 @@ export default async function Home() {
             </div>
           </div>
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-            <h3 className="mb-3 flex items-center gap-1.5 font-medium text-zinc-900 dark:text-zinc-50">
-              <CreditCardIcon className="h-4 w-4 text-zinc-400 dark:text-zinc-500" />
-              信用卡管理與本月對帳
-            </h3>
-            <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {DEMO_CARDS.map((card) => (
-                <li
-                  key={card.name}
-                  className="rounded-md border border-zinc-200 p-3 dark:border-zinc-800"
-                >
-                  <div className="mb-1 flex items-center justify-between gap-2">
-                    <p className="truncate font-medium text-zinc-900 dark:text-zinc-50">{card.name}</p>
-                    <span
-                      className={`flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium ${
-                        card.reconciled
-                          ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400"
-                          : "bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500"
-                      }`}
-                    >
-                      {card.reconciled ? (
-                        <>
-                          <CheckCircleIcon className="h-3.5 w-3.5" />
-                          已對帳
-                        </>
-                      ) : (
-                        <>
-                          <QuestionMarkCircleIcon className="h-3.5 w-3.5" />
-                          未對帳
-                        </>
-                      )}
-                    </span>
-                  </div>
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                    結帳日 {card.closingDate} 號 / 繳款日 {card.paymentDate} 號
-                  </p>
-                  <p className="mt-1 text-sm font-medium text-zinc-700 dark:text-zinc-300">
-                    本月刷卡 ${card.total.toLocaleString()}
-                  </p>
-                </li>
-              ))}
-            </ul>
-          </div>
         </div>
       </section>
 

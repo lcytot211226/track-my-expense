@@ -203,7 +203,12 @@ export default function OverviewClient() {
   const customItemsTotal = summary.customItems;
   // 每張卡都列出來,這個月完全沒刷卡的卡顯示 $0
   const cardTotalById = new Map(summary.cards.map((c) => [c.card, c.total]));
-  const cardBreakdown = cards.map((c) => ({ id: c._id, name: c.name, total: cardTotalById.get(c._id) ?? 0 }));
+  const cardBreakdown = cards.map((c) => ({
+    id: c._id,
+    name: c.name,
+    isDebit: !!c.isDebit,
+    total: cardTotalById.get(c._id) ?? 0,
+  }));
   const cardsTotal = cardBreakdown.reduce((sum, c) => sum + c.total, 0);
   // 別人分享給我、且我選擇納入的項目,只在這裡虛擬加總,不會動到分享者原本的資料。
   // 各項目以「收入為正、支出為負」的角度加總成一個淨額(收入、結餘為正,開銷類為負):
@@ -387,41 +392,51 @@ export default function OverviewClient() {
                     />
                     <div className="mb-1 flex items-center justify-between gap-1">
                       <p className="flex min-w-0 items-center gap-1 truncate text-sm text-zinc-500 dark:text-zinc-400">
-                        <CreditCardIcon className="h-3.5 w-3.5 shrink-0" />
+                        {card.isDebit ? (
+                          // 簽帳金融卡:同一個信用卡圖示塗成紫色(CSS 的 fill 會蓋過 svg 上的 fill="none")
+                          <span title="簽帳金融卡" className="shrink-0">
+                            <CreditCardIcon className="h-3.5 w-3.5 fill-violet-100 text-violet-600 dark:fill-violet-900/60 dark:text-violet-400" />
+                          </span>
+                        ) : (
+                          <CreditCardIcon className="h-3.5 w-3.5 shrink-0" />
+                        )}
                         <span className="truncate">{card.name}</span>
                       </p>
-                      <button
-                        type="button"
-                        onClick={() => cycleCardStatus(card.id)}
-                        title={
-                          status === "paid"
-                            ? "本月帳單已繳費,點擊重設為未對帳"
-                            : status === "reconciled"
-                              ? "本月帳單已對帳,點擊標記為已繳費"
-                              : "尚未對帳:點擊標記這張卡本月的帳單已經核對完成"
-                        }
-                        className={`relative z-10 flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium transition-colors ${
-                          status === "paid"
-                            ? "bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-400 dark:hover:bg-sky-900/60"
-                            : status === "reconciled"
-                              ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 dark:hover:bg-emerald-900/60"
-                              : "bg-zinc-100 text-zinc-400 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-500 dark:hover:bg-zinc-700"
-                        }`}
-                      >
-                        {status === "paid" ? (
-                          <>
-                            <BanknotesIcon className="h-3.5 w-3.5" />
-                            已繳費
-                          </>
-                        ) : status === "reconciled" ? (
-                          <>
-                            <CheckCircleIcon className="h-3.5 w-3.5" />
-                            已對帳
-                          </>
-                        ) : (
-                          <QuestionMarkCircleIcon className="h-3.5 w-3.5" />
-                        )}
-                      </button>
+                      {/* 簽帳金融卡沒有帳單,不需要對帳 */}
+                      {!card.isDebit && (
+                        <button
+                          type="button"
+                          onClick={() => cycleCardStatus(card.id)}
+                          title={
+                            status === "paid"
+                              ? "本月帳單已繳費,點擊重設為未對帳"
+                              : status === "reconciled"
+                                ? "本月帳單已對帳,點擊標記為已繳費"
+                                : "尚未對帳:點擊標記這張卡本月的帳單已經核對完成"
+                          }
+                          className={`relative z-10 flex shrink-0 items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-medium transition-colors ${
+                            status === "paid"
+                              ? "bg-sky-100 text-sky-700 hover:bg-sky-200 dark:bg-sky-900/40 dark:text-sky-400 dark:hover:bg-sky-900/60"
+                              : status === "reconciled"
+                                ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-400 dark:hover:bg-emerald-900/60"
+                                : "bg-zinc-100 text-zinc-400 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-500 dark:hover:bg-zinc-700"
+                          }`}
+                        >
+                          {status === "paid" ? (
+                            <>
+                              <BanknotesIcon className="h-3.5 w-3.5" />
+                              已繳費
+                            </>
+                          ) : status === "reconciled" ? (
+                            <>
+                              <CheckCircleIcon className="h-3.5 w-3.5" />
+                              已對帳
+                            </>
+                          ) : (
+                            <QuestionMarkCircleIcon className="h-3.5 w-3.5" />
+                          )}
+                        </button>
+                      )}
                     </div>
                     <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
                       ${card.total.toLocaleString()}

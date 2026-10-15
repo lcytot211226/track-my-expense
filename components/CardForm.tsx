@@ -7,11 +7,13 @@ import ConfirmDialog from "./ConfirmDialog";
 export type CardDTO = {
   _id: string;
   name: string;
-  closingDate: number;
-  paymentDate: number;
+  /** 簽帳金融卡:沒有結帳日 / 繳款日,歸屬月份等同現金(舊資料沒有這個欄位視為 false) */
+  isDebit?: boolean;
+  closingDate: number | null;
+  paymentDate: number | null;
 };
 
-const emptyForm = { name: "", closingDate: "", paymentDate: "" };
+const emptyForm = { name: "", isDebit: false, closingDate: "", paymentDate: "" };
 
 export default function CardForm({ initialCards }: { initialCards: CardDTO[] }) {
   const router = useRouter();
@@ -25,8 +27,9 @@ export default function CardForm({ initialCards }: { initialCards: CardDTO[] }) 
     setEditingId(card._id);
     setForm({
       name: card.name,
-      closingDate: String(card.closingDate),
-      paymentDate: String(card.paymentDate),
+      isDebit: !!card.isDebit,
+      closingDate: card.closingDate != null ? String(card.closingDate) : "",
+      paymentDate: card.paymentDate != null ? String(card.paymentDate) : "",
     });
   }
 
@@ -41,11 +44,14 @@ export default function CardForm({ initialCards }: { initialCards: CardDTO[] }) 
     setError(null);
     setSubmitting(true);
 
-    const payload = {
-      name: form.name,
-      closingDate: Number(form.closingDate),
-      paymentDate: Number(form.paymentDate),
-    };
+    const payload = form.isDebit
+      ? { name: form.name, isDebit: true }
+      : {
+          name: form.name,
+          isDebit: false,
+          closingDate: Number(form.closingDate),
+          paymentDate: Number(form.paymentDate),
+        };
 
     const res = await fetch(editingId ? `/api/cards/${editingId}` : "/api/cards", {
       method: editingId ? "PUT" : "POST",
@@ -91,6 +97,8 @@ export default function CardForm({ initialCards }: { initialCards: CardDTO[] }) 
             className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
           />
         </div>
+        {!form.isDebit && (
+          <>
         <div>
           <label className="mb-1 block text-sm font-medium text-zinc-700 dark:text-zinc-300">結帳日</label>
           <input
@@ -115,6 +123,26 @@ export default function CardForm({ initialCards }: { initialCards: CardDTO[] }) 
             className="w-full rounded-md border border-zinc-300 px-3 py-2 text-sm dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-50"
           />
         </div>
+          </>
+        )}
+
+        {/* 卡片類型只能在新增時決定,編輯時鎖住 */}
+        <label
+          className={`flex items-center gap-2 text-sm text-zinc-700 sm:col-span-4 dark:text-zinc-300 ${editingId ? "opacity-60" : ""}`}
+        >
+          <input
+            type="checkbox"
+            checked={form.isDebit}
+            disabled={!!editingId}
+            onChange={(e) => setForm({ ...form, isDebit: e.target.checked })}
+          />
+          簽帳金融卡
+          <span className="text-xs text-zinc-400 dark:text-zinc-500">
+            {editingId
+              ? "(卡片類型新增後無法更改)"
+              : "(直接從帳戶扣款,沒有結帳日,依消費日期當月計算,同現金;新增後無法更改)"}
+          </span>
+        </label>
 
         {error && <p className="text-sm text-red-600 sm:col-span-4 dark:text-red-400">{error}</p>}
 
@@ -147,7 +175,7 @@ export default function CardForm({ initialCards }: { initialCards: CardDTO[] }) 
             <div>
               <p className="font-medium text-zinc-900 dark:text-zinc-50">{card.name}</p>
               <p className="text-sm text-zinc-500 dark:text-zinc-400">
-                結帳日 {card.closingDate} 號 / 繳款日 {card.paymentDate} 號
+                {card.isDebit ? "簽帳金融卡" : `結帳日 ${card.closingDate} 號 / 繳款日 ${card.paymentDate} 號`}
               </p>
             </div>
             <div className="flex gap-2">

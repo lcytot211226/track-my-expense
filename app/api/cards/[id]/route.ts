@@ -30,14 +30,22 @@ export async function PUT(request: Request, { params }: Context) {
   const { name, closingDate, paymentDate } = await request.json();
 
   await connectToDatabase();
-  const card = await Card.findOneAndUpdate(
-    { _id: id, user: auth.userId },
-    { name, closingDate, paymentDate },
-    { new: true, runValidators: true }
-  );
-  if (!card) {
+  const existing = await Card.findOne({ _id: id, user: auth.userId });
+  if (!existing) {
     return NextResponse.json({ error: "找不到卡片" }, { status: 404 });
   }
+
+  // 是否為簽帳金融卡只在建立時決定,之後不能改(忽略 body 帶的 isDebit),
+  // 避免已存的交易 billingPeriod 跟卡片類型對不上
+  if (!name || (!existing.isDebit && (!closingDate || !paymentDate))) {
+    return NextResponse.json({ error: "缺少必要欄位" }, { status: 400 });
+  }
+
+  const card = await Card.findOneAndUpdate(
+    { _id: id, user: auth.userId },
+    existing.isDebit ? { name } : { name, closingDate, paymentDate },
+    { new: true, runValidators: true }
+  );
   return NextResponse.json({ card });
 }
 

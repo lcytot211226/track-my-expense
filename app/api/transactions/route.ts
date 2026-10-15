@@ -3,7 +3,7 @@ import { connectToDatabase } from "@/lib/mongodb";
 import Transaction from "@/lib/models/Transaction";
 import Card from "@/lib/models/Card";
 import { requireAuth } from "@/lib/auth";
-import { calculateBillingPeriod } from "@/lib/calculateBillingPeriod";
+import { calculateBillingPeriod, toCardBillingInfo } from "@/lib/calculateBillingPeriod";
 import { generateDueSubscriptionTransactions } from "@/lib/generateSubscriptionTransactions";
 import { recomputeOverviewSummary } from "@/lib/recomputeOverviewSummary";
 import { parsePointsDiscount } from "@/lib/pointsDiscount";
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
     if (!cardDoc) {
       return NextResponse.json({ error: "找不到卡片" }, { status: 404 });
     }
-    cardBillingInfo = { closingDate: cardDoc.closingDate, paymentDate: cardDoc.paymentDate };
+    cardBillingInfo = toCardBillingInfo(cardDoc);
   }
 
   const isPosted = posted ?? true;
