@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { CardDTO } from "./CardForm";
+import type { TransactionDTO } from "./TransactionsClient";
 import Modal from "./Modal";
 import TransactionForm from "./TransactionForm";
 import { PlusIcon } from "./icons";
@@ -26,7 +27,8 @@ export default function QuickAddButton({
   onAdded,
 }: {
   cards: CardDTO[] | null;
-  onAdded: () => void;
+  /** 新增成功後帶入新建立的交易(分期會是整組每一期),由總覽直接併進本地列表,不重打 API。 */
+  onAdded: (transactions: TransactionDTO[]) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [type, setType] = useState<TransactionType>("expense");

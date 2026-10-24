@@ -54,8 +54,8 @@ export default function SharedItemsSection({
 }: {
   incomingItems: IncomingShareDTO[];
   loading: boolean;
-  /** 我(收件人)切換某個共享項目是否納入支出後呼叫,讓外層重新載入 overview 總覽數字。 */
-  onIncomingChanged: () => void;
+  /** 我(收件人)切換某個共享項目是否納入支出後呼叫,帶入更新後的清單,外層直接更新本地狀態、不重新載入總覽。 */
+  onIncomingChanged: (items: IncomingShareDTO[]) => void;
 }) {
   const [outgoingShares, setOutgoingShares] = useState<OutgoingShareDTO[]>([]);
   const [cards, setCards] = useState<CardDTO[]>([]);
@@ -131,17 +131,25 @@ export default function SharedItemsSection({
     });
     if (changed.length === 0) return;
     setSaving(true);
-    await Promise.all(
+    const results = await Promise.all(
       changed.map((item) =>
         fetch(`/api/shares/${item._id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ included: item.included }),
         })
+          .then((res) => res.ok)
+          .catch(() => false)
       )
     );
     setSaving(false);
-    onIncomingChanged();
+    // 只套用成功送出的變更,失敗的維持原本的勾選狀態
+    const savedIds = new Set(changed.filter((_, i) => results[i]).map((item) => item._id));
+    const next = incomingItems.map((item) =>
+      savedIds.has(item._id) ? { ...item, included: !item.included } : item
+    );
+    setLocalItems(next);
+    onIncomingChanged(next);
   }
 
   function discardChanges() {
@@ -240,7 +248,7 @@ export default function SharedItemsSection({
         <div className="flex flex-col gap-5">
           <div>
             <div className="mb-2 flex items-center justify-between gap-2">
-              <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">別人分享給我(依 email 分類)</h3>
+              <h3 className="text-sm font-medium text-zinc-500 dark:text-zinc-400">別人分享給我</h3>
               <button
                 type="button"
                 onClick={saveChanges}

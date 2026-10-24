@@ -4,9 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import MonthPicker from "./MonthPicker";
 import OverviewChart, { type DailyExpense } from "./OverviewChart";
-import ExpenseAnalysis from "./ExpenseAnalysis";
 import QuickAddButton from "./QuickAddButton";
-import UtilityInlineEditor, { type UtilityDTO } from "./UtilityInlineEditor";
+import YearOverview from "./YearOverview";
+import UtilityInlineEditor, { toUtilityDTO, type UtilityDTO } from "./UtilityInlineEditor";
 import CustomItemsEditor, { type CustomItemDTO } from "./CustomItemsEditor";
 import PiggyBankTile from "./PiggyBankTile";
 import SpecialDatePrompt from "./SpecialDatePrompt";
@@ -91,6 +91,9 @@ export default function OverviewClient() {
   // 第一次載入完成前,快速記帳先用 localStorage 快取的卡片清單
   const [cardsLoaded, setCardsLoaded] = useState(false);
   const [incomingShares, setIncomingShares] = useState<IncomingShareDTO[]>([]);
+  // 月 / 年檢視切換;年檢視看的年份獨立於 period,切年份不會觸發月檢視重新載入
+  const [view, setView] = useState<"month" | "year">("month");
+  const [viewYear, setViewYear] = useState(() => new Date().getFullYear());
 
   const { year, month } = parsePeriod(period);
 
@@ -119,24 +122,7 @@ export default function OverviewClient() {
       const transactionsData = await readJson(transactionsRes);
       const cardsData = await readJson(cardsRes);
 
-      const found = overviewData.utility;
-      // 舊資料可能是在新增水費欄位/開關欄位前建立的,保底補上預設值避免畫面壞掉。
-      const defaultMeter = { start: 0, end: 0, unitPrice: 0, manualAmount: null };
-      setUtility(
-        found
-          ? {
-              date: found.date,
-              rent: found.rent,
-              elec: found.elec ?? defaultMeter,
-              water: found.water ?? defaultMeter,
-              rentEnabled: found.rentEnabled ?? true,
-              elecEnabled: found.elecEnabled ?? true,
-              waterEnabled: found.waterEnabled ?? true,
-              enabled: found.enabled ?? true,
-              paid: found.paid ?? false,
-            }
-          : null
-      );
+      setUtility(overviewData.utility ? toUtilityDTO(overviewData.utility) : null);
       setCustomItems(overviewData.customItems ?? []);
       setPiggyBankAmount(overviewData.piggyBankAmount ?? null);
       setTransactions(transactionsData.transactions ?? []);
@@ -178,6 +164,13 @@ export default function OverviewClient() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ card: cardId, period, status: next }),
     });
+  }
+
+  // 快速記帳新增後直接併進本地列表(只留歸屬這個月份的,例如分期只會有一期),
+  // 總覽的數字都是用 transactions 現場算的,不用重打 API。
+  function handleQuickAdded(added: TransactionDTO[]) {
+    const visible = added.filter((t) => t.billingPeriod === period);
+    if (visible.length > 0) setTransactions((prev) => [...prev, ...visible]);
   }
 
   const expenseList = transactions.filter((t) => t.type === "expense");
@@ -266,10 +259,59 @@ export default function OverviewClient() {
     });
   }
 
+  const viewToggle = (
+    <div
+      role="group"
+      aria-label="檢視範圍"
+      className="grid shrink-0 grid-cols-2 gap-1 rounded-md border border-zinc-300 p-0.5 text-sm dark:border-zinc-700"
+    >
+      {(
+        [
+          { value: "month", label: "月" },
+          { value: "year", label: "年" },
+        ] as const
+      ).map((opt) => (
+        <button
+          key={opt.value}
+          type="button"
+          onClick={() => {
+            if (opt.value === "year" && view !== "year") setViewYear(year);
+            setView(opt.value);
+          }}
+          aria-pressed={view === opt.value}
+          className={`rounded px-3 py-1.5 font-medium ${
+            view === opt.value
+              ? "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"
+              : "text-zinc-600 dark:text-zinc-300"
+          }`}
+        >
+          {opt.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (view === "year") {
+    return (
+      <YearOverview
+        year={viewYear}
+        onYearChange={setViewYear}
+        onSelectMonth={(p) => {
+          setPeriod(p);
+          setView("month");
+        }}
+        headerRight={viewToggle}
+      />
+    );
+  }
+
   return (
     // 手機版底部多留空間,避免右下角的快速記帳按鈕蓋住最後一個區塊
     <div className="flex flex-col gap-6 pb-20 sm:pb-0">
-      <MonthPicker value={period} onChange={setPeriod} />
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <MonthPicker value={period} onChange={setPeriod} />
+        {viewToggle}
+      </div>
 
       <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mb-2 flex items-center justify-between">
@@ -290,13 +332,6 @@ export default function OverviewClient() {
           </button>
         </div>
         <OverviewChart dailyExpense={dailyExpense} />
-        <div className="mt-3 flex justify-end">
-          <ExpenseAnalysis
-            period={period}
-            expenses={chartExpenseList.map((t) => ({ ...t, amount: netAmount(t) }))}
-            includesInstallment={showInstallmentInChart}
-          />
-        </div>
       </div>
 
       <UtilityInlineEditor
@@ -304,12 +339,12 @@ export default function OverviewClient() {
         month={month}
         utility={utility}
         loading={loading}
-        onSaved={load}
+        onSaved={setUtility}
         onPaidChange={(paid) => setUtility((prev) => (prev ? { ...prev, paid } : prev))}
       />
 
       
-      <CustomItemsEditor year={year} month={month} items={customItems} loading={loading} onSaved={load} />
+      <CustomItemsEditor year={year} month={month} items={customItems} loading={loading} onSaved={setCustomItems} />
 
       <div className="rounded-lg border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
         <div className="mb-4 grid grid-cols-3 gap-4 text-center">
@@ -513,9 +548,9 @@ export default function OverviewClient() {
           </button>
         </div>
       </div>
-      <SharedItemsSection incomingItems={incomingShares} loading={loading} onIncomingChanged={load} />
+      <SharedItemsSection incomingItems={incomingShares} loading={loading} onIncomingChanged={setIncomingShares} />
 
-      <QuickAddButton cards={cardsLoaded ? cards : null} onAdded={load} />
+      <QuickAddButton cards={cardsLoaded ? cards : null} onAdded={handleQuickAdded} />
 
       
     </div>

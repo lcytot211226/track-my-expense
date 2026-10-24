@@ -3,8 +3,8 @@ import { computeMonthSummary } from "@/lib/computeMonthSummary";
 
 /**
  * 重新計算某使用者某個 billingPeriod 的 OverviewSummary 並覆寫快取。
- * 交易 / 水電 / 自訂項目任何一個異動之後都要呼叫這個函式。這份快取只給「分享」用
- * (別人讀我的分享項目時只要查一筆,不用拉我整個月的原始資料);我自己的 /overview 不讀快取,
+ * 交易 / 水電 / 自訂項目任何一個異動之後都要呼叫這個函式。這份快取給「分享」與 /overview 年度檢視用
+ * (別人讀我的分享項目時只要查一筆、年度檢視一次查 12 筆,不用拉整個月的原始資料);我自己的 /overview 月檢視不讀快取,
  * 直接用原始資料現場算。兩邊都走 lib/summarizeMonth,算出來的數字一定一致。
  */
 export async function recomputeOverviewSummary(userId: string, period: string) {

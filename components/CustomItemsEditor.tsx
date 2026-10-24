@@ -19,7 +19,8 @@ export default function CustomItemsEditor({
   month: number;
   items: CustomItemDTO[];
   loading: boolean;
-  onSaved: () => void;
+  /** 新增 / 編輯 / 刪除成功後帶入更新後的整份清單,外層直接更新本地狀態,不重新載入整個總覽。 */
+  onSaved: (items: CustomItemDTO[]) => void;
 }) {
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
@@ -51,7 +52,7 @@ export default function CustomItemsEditor({
     }
     setName("");
     setAmount("");
-    onSaved();
+    onSaved([...items, data.item]);
   }
 
   function startEdit(item: CustomItemDTO) {
@@ -78,14 +79,14 @@ export default function CustomItemsEditor({
       return;
     }
     setEditingId(null);
-    onSaved();
+    onSaved(items.map((item) => (item._id === id ? data.item : item)));
   }
 
   async function handleDelete(id: string) {
     setDeletingId(id);
-    await fetch(`/api/custom-items/${id}`, { method: "DELETE" });
+    const res = await fetch(`/api/custom-items/${id}`, { method: "DELETE" });
     setDeletingId(null);
-    onSaved();
+    if (res.ok) onSaved(items.filter((item) => item._id !== id));
   }
 
   const total = items.reduce((sum, item) => sum + item.amount, 0);

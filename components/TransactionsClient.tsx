@@ -32,6 +32,8 @@ export type TransactionDTO = {
   posted: boolean;
   billingPeriod: string;
   subscription: string | null;
+  /** 同一次分期購買的所有期數共用,刪除其中一期會整組一起刪 */
+  installmentGroupId?: string | null;
   createdAt: string;
 };
 
@@ -184,11 +186,35 @@ export default function TransactionsClient({
     setDeleteTarget(t);
   }
 
+  // 新增 / 編輯 / 刪除都直接用 API 的回應更新本地列表,不重新抓整個月份。
+  // 只保留歸屬這個月份、同類型的交易(例如分期的其他期數、改了日期跑到別的月份的就不放進來)。
+  const belongsHere = useCallback(
+    (t: TransactionDTO) => t.type === type && t.billingPeriod === period,
+    [type, period]
+  );
+
+  function handleAdded(added: TransactionDTO[]) {
+    const visible = added.filter(belongsHere);
+    if (visible.length > 0) setTransactions((prev) => [...prev, ...visible]);
+  }
+
+  function handleSaved(saved: TransactionDTO) {
+    setTransactions((prev) =>
+      belongsHere(saved) ? prev.map((t) => (t._id === saved._id ? saved : t)) : prev.filter((t) => t._id !== saved._id)
+    );
+  }
+
   async function confirmDelete() {
     if (!deleteTarget) return;
-    await fetch(`/api/transactions/${deleteTarget._id}`, { method: "DELETE" });
+    const target = deleteTarget;
+    const res = await fetch(`/api/transactions/${target._id}`, { method: "DELETE" });
     setDeleteTarget(null);
-    load();
+    if (!res.ok) return;
+    // 分期交易會整組一起刪(見 DELETE API),同一組的其他期數若也在這個月份要一併拿掉
+    const groupId = target.installmentGroupId;
+    setTransactions((prev) =>
+      prev.filter((t) => t._id !== target._id && !(groupId && t.installmentGroupId === groupId))
+    );
   }
 
   // 付款方式篩選:跟 API 的規則一致,選「信用卡」時一併包含分期(分期本質上也是刷卡)。
@@ -376,11 +402,11 @@ export default function TransactionsClient({
           type={type}
           cards={initialCards}
           transaction={editing ?? undefined}
-          onSaved={() => {
+          onSaved={(saved) => {
             closeForm();
-            load();
+            handleSaved(saved);
           }}
-          onAdded={load}
+          onAdded={handleAdded}
           onCancel={closeForm}
         />
       </Modal>

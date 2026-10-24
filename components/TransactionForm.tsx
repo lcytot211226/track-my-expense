@@ -17,6 +17,17 @@ function toLocalDateString(d: Date) {
   return `${year}-${month}-${day}`;
 }
 
+/**
+ * API 回傳的交易:新增(POST)時 card 只是卡片 id、沒有 populate,編輯(PUT)時才是完整卡片。
+ * 一律用手上的卡片清單補成 TransactionDTO,讓呼叫端直接更新本地列表、不用重打 API。
+ */
+type SavedTransaction = Omit<TransactionDTO, "card"> & { card: CardDTO | string | null };
+
+function withCard(t: SavedTransaction, cards: CardDTO[]): TransactionDTO {
+  const card = typeof t.card === "string" ? (cards.find((c) => c._id === t.card) ?? null) : t.card;
+  return { ...t, card };
+}
+
 function shiftDate(date: string, days: number) {
   const d = new Date(`${date}T00:00:00`);
   d.setDate(d.getDate() + days);
@@ -34,10 +45,10 @@ export default function TransactionForm({
   type: "income" | "expense";
   cards: CardDTO[];
   transaction?: TransactionDTO;
-  /** 編輯既有交易成功後呼叫(通常會關閉表單)。 */
-  onSaved: () => void;
-  /** 新增交易成功後呼叫(表單會保持開啟,方便連續輸入多筆)。 */
-  onAdded?: () => void;
+  /** 編輯既有交易成功後呼叫(通常會關閉表單),帶入更新後的交易。 */
+  onSaved: (transaction: TransactionDTO) => void;
+  /** 新增交易成功後呼叫(表單會保持開啟,方便連續輸入多筆),帶入新建立的交易(分期會是整組每一期)。 */
+  onAdded?: (transactions: TransactionDTO[]) => void;
   onCancel?: () => void;
 }) {
   const itemInputRef = useRef<HTMLInputElement>(null);
@@ -99,7 +110,7 @@ export default function TransactionForm({
       setItem("");
       setTotalAmount("");
       itemInputRef.current?.focus();
-      onAdded?.();
+      onAdded?.((data.transactions as SavedTransaction[]).map((t) => withCard(t, cards)));
       return;
     }
 
@@ -132,8 +143,9 @@ export default function TransactionForm({
       return;
     }
 
+    const saved = withCard(data.transaction as SavedTransaction, cards);
     if (transaction) {
-      onSaved();
+      onSaved(saved);
       return;
     }
 
@@ -142,7 +154,7 @@ export default function TransactionForm({
     setAmount("");
     setPointsDiscount("");
     itemInputRef.current?.focus();
-    onAdded?.();
+    onAdded?.([saved]);
   }
 
   return (

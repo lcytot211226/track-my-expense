@@ -35,6 +35,21 @@ const emptyUtility: UtilityDTO = {
   paid: false,
 };
 
+/** 把 API 回傳的房租水電轉成 UtilityDTO;舊資料可能是在新增水費欄位/開關欄位前建立的,補上預設值避免畫面壞掉。 */
+export function toUtilityDTO(found: Pick<UtilityDTO, "date" | "rent"> & Partial<UtilityDTO>): UtilityDTO {
+  return {
+    date: found.date,
+    rent: found.rent,
+    elec: found.elec ?? { ...emptyMeter },
+    water: found.water ?? { ...emptyMeter },
+    rentEnabled: found.rentEnabled ?? true,
+    elecEnabled: found.elecEnabled ?? true,
+    waterEnabled: found.waterEnabled ?? true,
+    enabled: found.enabled ?? true,
+    paid: found.paid ?? false,
+  };
+}
+
 const METER_LABEL: Record<
   MeterField,
   { name: string; short: string; Icon: typeof BoltIcon; tint: string; iconColor: string }
@@ -320,7 +335,8 @@ export default function UtilityInlineEditor({
   month: number;
   utility: UtilityDTO | null;
   loading: boolean;
-  onSaved: () => void;
+  /** 儲存成功後帶入 API 回傳的最新資料,外層直接更新本地狀態,不重新載入整個總覽。 */
+  onSaved: (utility: UtilityDTO) => void;
   /** 繳費狀態切換後通知外層更新本地資料(不重新載入整個總覽,跟信用卡對帳標籤一樣即時反應)。 */
   onPaidChange: (paid: boolean) => void;
 }) {
@@ -358,7 +374,7 @@ export default function UtilityInlineEditor({
     const display = utility ?? emptyUtility;
     const next = !display.enabled;
     setTogglingAll(true);
-    await fetch("/api/utilities", {
+    const res = await fetch("/api/utilities", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -374,8 +390,9 @@ export default function UtilityInlineEditor({
         enabled: next,
       }),
     });
+    const data = await res.json().catch(() => null);
     setTogglingAll(false);
-    onSaved();
+    if (res.ok && data?.utility) onSaved(toUtilityDTO(data.utility));
   }
 
   async function handleSubmit(event: FormEvent) {
@@ -400,7 +417,7 @@ export default function UtilityInlineEditor({
     }
 
     setEditing(false);
-    onSaved();
+    onSaved(toUtilityDTO(data.utility));
   }
 
   const header = (right?: ReactNode) => (
