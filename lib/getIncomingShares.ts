@@ -34,13 +34,16 @@ export async function getIncomingShares(email: string, period: string) {
 
   return shares.map((s) => {
     const ownerId = s.owner._id.toString();
-    const amount = summaryItemAmount(summaryByOwner.get(ownerId), s.itemKey);
+    const summary = summaryByOwner.get(ownerId);
+    const amount = summaryItemAmount(summary, s.itemKey);
     return {
       _id: s._id.toString(),
       ownerEmail: s.owner.email,
       itemKey: s.itemKey,
       label: labelForItemKey(s.itemKey, cardNameById),
       amount,
+      // 結餘 = 分享者的收入與支出都抓,另外帶出兩者,收件人才能分別加進自己的收入與支出
+      ...(s.itemKey === "balance" ? { income: summary?.income ?? 0, expense: summary?.expense ?? 0 } : {}),
       included: s.included,
     };
   });

@@ -44,22 +44,55 @@ export function formatPeriod(year: number, month: number): string {
   return `${year}-${String(month).padStart(2, "0")}`;
 }
 
-/**
- * 別人分享給我的項目納入「我」的支出總額時的實際貢獻值:
- * - 收入(income)與結餘(balance)對「支出」而言是負向貢獻(等於抵銷支出),要反轉正負號。
- *   結餘可以放心計入:OverviewSummary 快取只由分享者自己的原始資料算出,不含任何分享項目,
- *   所以就算雙方互相分享結餘也不會遞迴或重複灌水。
- * - 其餘(現金/分期/信用卡等開銷類項目)維持原本金額。
- */
-export function sharedItemContribution(itemKey: string, amount: number): number {
-  if (itemKey === "income" || itemKey === "balance") return -amount;
-  return amount;
-}
+export type SharedTotals = { income: number; expense: number };
+
+export type SharedItemForTotals = {
+  /** 分享者(同一個人分享的多個項目要一起判斷重疊) */
+  owner: string;
+  itemKey: string;
+  amount: number;
+  included: boolean;
+  /** 只有 balance 項目會帶:分享者當月的收入與支出,結餘 = 兩者都抓 */
+  income?: number;
+  expense?: number;
+};
 
 /**
- * 收件人選擇納入(included)的分享項目,以「收入為正、支出為負」加總成一個淨額。
- * /overview 用它調整畫面上的收入/支出/結餘(純顯示,不影響存錢罐,也不寫進快取)。
+ * 收件人選擇納入(included)的分享項目,收入和支出分開加總,/overview 分別加進自己的收入與支出
+ * (純顯示,不影響存錢罐,也不寫進快取):
+ * - income:加進收入
+ * - balance(結餘):代表分享者的收入和支出都抓,分別加進收入與支出
+ * - expense 與其他開銷類(現金 / 分期 / 訂閱 / 房租水電 / 自訂項目 / 信用卡):加進支出
+ *
+ * 同一個分享者的項目會去掉明顯的重疊,避免重複計算:選了結餘就已經包含他的收入與全部支出,其他項目不再加;
+ * 選了支出就已經包含所有開銷類分項,分項不再加。分項之間本身的重疊(例如分期也算在某張信用卡裡)不處理。
+ *
+ * 結餘可以放心計入:OverviewSummary 快取只由分享者自己的原始資料算出,不含任何分享項目,
+ * 所以就算雙方互相分享結餘也不會遞迴或重複灌水。
  */
-export function includedSharedNet(items: { itemKey: string; amount: number; included: boolean }[]): number {
-  return items.filter((s) => s.included).reduce((sum, s) => sum - sharedItemContribution(s.itemKey, s.amount), 0);
+export function includedSharedTotals(items: SharedItemForTotals[]): SharedTotals {
+  const byOwner = new Map<string, SharedItemForTotals[]>();
+  for (const item of items) {
+    if (!item.included) continue;
+    const list = byOwner.get(item.owner) ?? [];
+    list.push(item);
+    byOwner.set(item.owner, list);
+  }
+
+  let income = 0;
+  let expense = 0;
+  for (const list of byOwner.values()) {
+    const balance = list.find((i) => i.itemKey === "balance");
+    if (balance) {
+      income += balance.income ?? 0;
+      expense += balance.expense ?? 0;
+      continue;
+    }
+    income += list.filter((i) => i.itemKey === "income").reduce((sum, i) => sum + i.amount, 0);
+    const totalExpense = list.find((i) => i.itemKey === "expense");
+    expense += totalExpense
+      ? totalExpense.amount
+      : list.filter((i) => i.itemKey !== "income").reduce((sum, i) => sum + i.amount, 0);
+  }
+  return { income, expense };
 }

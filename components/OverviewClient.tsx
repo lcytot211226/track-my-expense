@@ -14,7 +14,7 @@ import SharedItemsSection, { type IncomingShareDTO } from "./SharedItemsSection"
 import type { TransactionDTO } from "./TransactionsClient";
 import { usePeriod } from "@/lib/usePeriod";
 import { calculateDailyBudget, daysUntilSpecialDate } from "@/lib/calculateDailyBudget";
-import { includedSharedNet as calculateIncludedSharedNet } from "@/lib/overviewItems";
+import { includedSharedTotals } from "@/lib/overviewItems";
 import { summarizeMonth } from "@/lib/summarizeMonth";
 import type { CardDTO } from "./CardForm";
 import { useToast } from "./ToastProvider";
@@ -204,11 +204,10 @@ export default function OverviewClient() {
   }));
   const cardsTotal = cardBreakdown.reduce((sum, c) => sum + c.total, 0);
   // 別人分享給我、且我選擇納入的項目,只在這裡虛擬加總,不會動到分享者原本的資料。
-  // 各項目以「收入為正、支出為負」的角度加總成一個淨額(收入、結餘為正,開銷類為負):
-  // 淨額為正代表這批分享項目整體是收入,加進收入;為負則代表整體是支出,加進支出。
-  const includedSharedNet = calculateIncludedSharedNet(incomingShares);
-  const sharedIncomeAdjustment = includeSharedInStats && includedSharedNet > 0 ? includedSharedNet : 0;
-  const sharedExpenseAdjustment = includeSharedInStats && includedSharedNet < 0 ? -includedSharedNet : 0;
+  // 收入與支出分開加:收入項目加進收入、開銷類加進支出,結餘則是分享者的收入和支出都抓(規則見 includedSharedTotals)。
+  const sharedTotals = includedSharedTotals(incomingShares.map((s) => ({ ...s, owner: s.ownerEmail })));
+  const sharedIncomeAdjustment = includeSharedInStats ? sharedTotals.income : 0;
+  const sharedExpenseAdjustment = includeSharedInStats ? sharedTotals.expense : 0;
   const incomeTotal = summary.income + sharedIncomeAdjustment;
   // 存錢罐存下的金額已經由 summarizeMonth 算進 summary.expense(只看自己的結餘,不受共享項目影響)。
   // 存錢罐格子的預覽要用「存錢前」的自己結餘。
@@ -530,7 +529,7 @@ export default function OverviewClient() {
           <button
             type="button"
             onClick={() => setIncludeSharedInStats((prev) => !prev)}
-            title="點擊切換是否計入上方統計:虛擬項目為收入減支出,只在這裡合計顯示,不會實際存成一筆交易。開啟時,正值加進上方收入、負值加進上方支出。"
+            title="點擊切換是否計入上方統計:別人分享給我、且勾選納入的項目,收入 / 支出分開合計(結餘 = 對方的收入和支出都算),不會實際存成一筆交易。開啟時分別加進上方的收入與支出。"
             className="relative w-full rounded-md border border-dashed border-zinc-300 p-3 text-center dark:border-zinc-700"
           >
             <span
@@ -540,10 +539,10 @@ export default function OverviewClient() {
             />
             <p className="flex items-center justify-center gap-1 text-sm text-zinc-500 dark:text-zinc-400">
               <UserGroupIcon className="h-4 w-4" />
-              共享總額(虛擬)
+              共享收入 / 支出
             </p>
             <p className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-              ${includedSharedNet.toLocaleString()}
+              ${sharedTotals.income.toLocaleString()} / ${sharedTotals.expense.toLocaleString()}
             </p>
           </button>
         </div>

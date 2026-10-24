@@ -7,13 +7,14 @@ import { requireAuth } from "@/lib/auth";
 import { generateDueSubscriptionTransactions } from "@/lib/generateSubscriptionTransactions";
 import { getOverviewSummary } from "@/lib/getOverviewSummary";
 import { summaryItemAmount } from "@/lib/getIncomingShares";
-import { formatPeriod, includedSharedNet } from "@/lib/overviewItems";
+import { formatPeriod, includedSharedTotals, type SharedTotals } from "@/lib/overviewItems";
 
 /**
  * /overview 的年度檢視:一次回傳某年 12 個月的 OverviewSummary 快取。
  * 一次查出整年的快取;沒有快取或是缺 piggyBank 的舊快取,才逐月走 getOverviewSummary 現場算並補上,
  * 之後同一年再看就只剩一次查詢。快取只含自己的收支;另外附上每個月別人分享給我、且目前勾選納入
- * (included)的項目淨額 sharedNet,要不要計入由前端切換。
+ * (included)的項目收入 / 支出
+ * (sharedIncome / sharedExpense,規則見 includedSharedTotals),要不要計入由前端切換。
  */
 export async function GET(request: Request) {
   const auth = await requireAuth();
@@ -32,10 +33,10 @@ export async function GET(request: Request) {
   await generateDueSubscriptionTransactions(auth.userId);
 
   const periods = Array.from({ length: 12 }, (_, i) => formatPeriod(year, i + 1));
-  const [cached, cards, sharedNetByPeriod] = await Promise.all([
+  const [cached, cards, sharedByPeriod] = await Promise.all([
     OverviewSummary.find({ user: auth.userId, period: { $in: periods } }),
     Card.find({ user: auth.userId }).sort({ createdAt: 1 }),
-    getYearSharedNet(auth.email, periods),
+    getYearSharedTotals(auth.email, periods),
   ]);
   const byPeriod = new Map(cached.map((s) => [s.period, s]));
 
@@ -58,7 +59,8 @@ export async function GET(request: Request) {
     customItems: s?.customItems ?? 0,
     piggyBank: s?.piggyBank ?? 0,
     cards: (s?.cards ?? []).map((c) => ({ card: String(c.card), total: c.total })),
-    sharedNet: sharedNetByPeriod.get(periods[i]) ?? 0,
+    sharedIncome: sharedByPeriod.get(periods[i])?.income ?? 0,
+    sharedExpense: sharedByPeriod.get(periods[i])?.expense ?? 0,
   }));
 
   return NextResponse.json({
@@ -69,11 +71,11 @@ export async function GET(request: Request) {
 }
 
 /**
- * 每個月別人分享給我、且目前勾選納入的項目淨額(收入為正、支出為負,同 /overview 月檢視的共享總額)。
+ * 每個月別人分享給我、且目前勾選納入的項目,收入與支出分開加總(同 /overview 月檢視的共享總額)。
  * 用的是「現在」的納入設定套到整年,跟月檢視一致。分享者的快取一次查出整年,缺的才逐月現場算。
  */
-async function getYearSharedNet(email: string, periods: string[]) {
-  const result = new Map<string, number>();
+async function getYearSharedTotals(email: string, periods: string[]) {
+  const result = new Map<string, SharedTotals>();
   const shares = await Share.find({ targetEmail: email.toLowerCase(), included: true });
   if (shares.length === 0) return result;
 
@@ -96,12 +98,19 @@ async function getYearSharedNet(email: string, periods: string[]) {
   );
 
   for (const period of periods) {
-    const items = shares.map((s) => ({
-      itemKey: s.itemKey,
-      included: true,
-      amount: summaryItemAmount(byKey.get(cacheKey(s.owner.toString(), period)), s.itemKey),
-    }));
-    result.set(period, includedSharedNet(items));
+    const items = shares.map((s) => {
+      const owner = s.owner.toString();
+      const summary = byKey.get(cacheKey(owner, period));
+      return {
+        owner,
+        itemKey: s.itemKey,
+        included: true,
+        amount: summaryItemAmount(summary, s.itemKey),
+        income: summary?.income ?? 0,
+        expense: summary?.expense ?? 0,
+      };
+    });
+    result.set(period, includedSharedTotals(items));
   }
   return result;
 }

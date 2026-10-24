@@ -39,8 +39,9 @@ type YearMonth = {
   customItems: number;
   piggyBank: number;
   cards: { card: string; total: number }[];
-  /** 別人分享給我、且目前勾選納入的項目淨額(收入為正、支出為負) */
-  sharedNet: number;
+  /** 別人分享給我、且目前勾選納入的項目,收入與支出分開合計(規則見 lib/overviewItems.ts 的 includedSharedTotals) */
+  sharedIncome: number;
+  sharedExpense: number;
 };
 
 type YearCard = { _id: string; name: string; isDebit: boolean };
@@ -49,10 +50,10 @@ type YearData = { year: number; months: YearMonth[]; cards: YearCard[] };
 
 type ChartRow = YearMonth & { label: string };
 
-/** 共享總額計入統計時,跟月檢視一樣:淨額為正加進收入、為負加進支出,結餘跟著重算。 */
+/** 共享總額計入統計時,跟月檢視一樣:共享收入加進收入、共享支出加進支出,結餘跟著重算。 */
 function withShared(m: YearMonth): YearMonth {
-  const income = m.income + Math.max(m.sharedNet, 0);
-  const expense = m.expense + Math.max(-m.sharedNet, 0);
+  const income = m.income + m.sharedIncome;
+  const expense = m.expense + m.sharedExpense;
   return { ...m, income, expense, balance: income - expense };
 }
 
@@ -62,7 +63,7 @@ function money(n: number) {
 
 function sumOf(
   months: YearMonth[],
-  key: "income" | "expense" | "balance" | "cash" | "installment" | "subscription" | "utility" | "customItems" | "piggyBank" | "sharedNet"
+  key: "income" | "expense" | "balance" | "cash" | "installment" | "subscription" | "utility" | "customItems" | "piggyBank" | "sharedIncome" | "sharedExpense"
 ) {
   return months.reduce((total, m) => total + m[key], 0);
 }
@@ -167,7 +168,8 @@ export default function YearOverview({
     return month >= range.start && month <= range.end;
   });
   const months = includeShared ? rawMonths.map(withShared) : rawMonths;
-  const sharedTotal = sumOf(rawMonths, "sharedNet");
+  const sharedIncome = sumOf(rawMonths, "sharedIncome");
+  const sharedExpense = sumOf(rawMonths, "sharedExpense");
   const incomeColor = isDark ? INCOME_COLOR.dark : INCOME_COLOR.light;
   const expenseColor = isDark ? EXPENSE_COLOR.dark : EXPENSE_COLOR.light;
   const gridColor = isDark ? "#2c2c2a" : "#e1e0d9";
@@ -420,7 +422,7 @@ export default function YearOverview({
               type="button"
               onClick={() => setIncludeShared((prev) => !prev)}
               aria-pressed={includeShared}
-              title="點擊切換是否計入上方統計:別人分享給我、且目前勾選納入的項目,收入減支出的全年淨額。開啟時,每個月的正值加進收入、負值加進支出。"
+              title="點擊切換是否計入上方統計:別人分享給我、且目前勾選納入的項目,收入 / 支出分開合計(結餘 = 對方的收入和支出都算)。開啟時分別加進每個月的收入與支出。"
               className="relative w-full rounded-md border border-dashed border-zinc-300 p-3 text-center dark:border-zinc-700"
             >
               <span
@@ -430,9 +432,11 @@ export default function YearOverview({
               />
               <p className="flex items-center justify-center gap-1 truncate text-sm text-zinc-500 dark:text-zinc-400">
                 <UserGroupIcon className="h-3.5 w-3.5 shrink-0" />
-                <span className="truncate">共享總額(虛擬)</span>
+                <span className="truncate">共享收入 / 支出</span>
               </p>
-              <p className="font-semibold text-zinc-900 dark:text-zinc-50">{money(sharedTotal)}</p>
+              <p className="break-words font-semibold text-zinc-900 dark:text-zinc-50">
+                {money(sharedIncome)} / {money(sharedExpense)}
+              </p>
             </button>
           </div>
         </div>

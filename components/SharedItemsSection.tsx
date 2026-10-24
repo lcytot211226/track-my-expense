@@ -5,7 +5,7 @@ import type { CardDTO } from "./CardForm";
 import ShareForm, { type ShareFormEditTarget } from "./ShareForm";
 import Modal from "./Modal";
 import ConfirmDialog from "./ConfirmDialog";
-import { sharedItemContribution } from "@/lib/overviewItems";
+import { includedSharedTotals, type SharedTotals } from "@/lib/overviewItems";
 import { UserGroupIcon } from "./icons";
 
 export type IncomingShareDTO = {
@@ -14,6 +14,9 @@ export type IncomingShareDTO = {
   itemKey: string;
   label: string;
   amount: number;
+  /** 只有結餘項目會帶:分享者當月的收入與支出(結餘 = 兩者都抓) */
+  income?: number;
+  expense?: number;
   included: boolean;
 };
 
@@ -28,7 +31,7 @@ type OutgoingShareDTO = {
 type EmailGroup = {
   email: string;
   items: IncomingShareDTO[];
-  includedTotal: number;
+  includedTotals: SharedTotals;
 };
 
 function groupByEmail(items: IncomingShareDTO[]): EmailGroup[] {
@@ -41,9 +44,7 @@ function groupByEmail(items: IncomingShareDTO[]): EmailGroup[] {
   return Array.from(map.entries()).map(([email, groupItems]) => ({
     email,
     items: groupItems,
-    includedTotal: groupItems
-      .filter((i) => i.included)
-      .reduce((sum, i) => sum + sharedItemContribution(i.itemKey, i.amount), 0),
+    includedTotals: includedSharedTotals(groupItems.map((i) => ({ ...i, owner: email }))),
   }));
 }
 
@@ -54,7 +55,7 @@ export default function SharedItemsSection({
 }: {
   incomingItems: IncomingShareDTO[];
   loading: boolean;
-  /** 我(收件人)切換某個共享項目是否納入支出後呼叫,帶入更新後的清單,外層直接更新本地狀態、不重新載入總覽。 */
+  /** 我(收件人)切換某個共享項目是否納入收支後呼叫,帶入更新後的清單,外層直接更新本地狀態、不重新載入總覽。 */
   onIncomingChanged: (items: IncomingShareDTO[]) => void;
 }) {
   const [outgoingShares, setOutgoingShares] = useState<OutgoingShareDTO[]>([]);
@@ -66,7 +67,7 @@ export default function SharedItemsSection({
   const [deleteTarget, setDeleteTarget] = useState<OutgoingShareDTO | null>(null);
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
-  // 「納入支出」勾選只先改本地狀態,按下「儲存」或關閉視窗前確認要不要儲存時,才一次送出變更,
+  // 「納入收支」勾選只先改本地狀態,按下「儲存」或關閉視窗前確認要不要儲存時,才一次送出變更,
   // 避免使用者每勾一次就打一次 API、等一次整頁重新載入。
   const [localItems, setLocalItems] = useState<IncomingShareDTO[]>(incomingItems);
 
@@ -267,7 +268,14 @@ export default function SharedItemsSection({
                     <div className="mb-2 flex items-center justify-between gap-2">
                       <p className="min-w-0 truncate font-medium text-zinc-900 dark:text-zinc-50">{group.email}</p>
                       <span className="shrink-0 text-sm text-zinc-500 dark:text-zinc-400">
-                        已納入支出 <span className="font-medium text-zinc-900 dark:text-zinc-50">${group.includedTotal.toLocaleString()}</span>
+                        已納入 收入{" "}
+                        <span className="font-medium text-zinc-900 dark:text-zinc-50">
+                          ${group.includedTotals.income.toLocaleString()}
+                        </span>{" "}
+                        / 支出{" "}
+                        <span className="font-medium text-zinc-900 dark:text-zinc-50">
+                          ${group.includedTotals.expense.toLocaleString()}
+                        </span>
                       </span>
                     </div>
                     <ul className="flex flex-col gap-2">
@@ -287,7 +295,7 @@ export default function SharedItemsSection({
                                 checked={item.included}
                                 onChange={() => toggleIncludedLocal(item)}
                               />
-                              納入支出
+                              納入收支
                             </label>
                           </div>
                         </li>
@@ -379,7 +387,7 @@ export default function SharedItemsSection({
       <ConfirmDialog
         open={showExitConfirm}
         title="儲存變更?"
-        message="「納入支出」的勾選有異動尚未儲存,要儲存嗎?"
+        message="「納入收支」的勾選有異動尚未儲存,要儲存嗎?"
         confirmLabel="儲存"
         cancelLabel="不儲存"
         danger={false}

@@ -74,11 +74,8 @@ export default function MonthRangePicker({
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-label={`統計月份:${label}`}
-        className={`flex items-center gap-1.5 rounded-md border px-3 py-2 text-sm transition-colors ${
-          isFullYear
-            ? "border-zinc-900 bg-zinc-900 text-white dark:border-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
-            : "border-zinc-300 text-zinc-700 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
-        }`}
+        // 跟旁邊的年份按鈕一樣用灰外框,全年或自訂區間只靠文字區分
+        className="flex items-center gap-1.5 rounded-md border border-zinc-300 px-3 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
       >
         <CalendarDaysIcon className="h-4 w-4" />
         {label}
